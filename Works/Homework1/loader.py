@@ -3,7 +3,33 @@ import zmq
 import requests
 import argparse
 
+from bs4 import BeautifulSoup as bs, Tag
+
 from defines import *
+
+def isAllowed(url: str):
+    for subString in ADDRESS_BLACKLIST:
+        if subString in url:
+            return False
+    return True
+
+def parseAndProcessPage(page: str, sockUrlOut: zmq.Socket) -> str | None:
+    try:
+        soup: Tag = bs(page, "html.parser")
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return None
+    refs = soup.find_all("a")
+    for ref in refs:
+        if not ref.has_attr("href"):
+            continue
+        href: str = ref["href"]
+        if not href.startswith("http") or not isAllowed(href):
+            continue
+        sockUrlOut.send_string(href)
+        print(f"Send url: {href}")
+    return soup.text
+
 
 
 def loadDocument(session: requests.Session, url: str) -> str | None:
@@ -33,13 +59,24 @@ def main():
     documentsRequired = DOCUMENTS_QUANTITY_REQUIRED // n
 
     ctx = zmq.Context()
-    sockUrl = ctx.socket(zmq.PULL)
-    sockDocumentPath = ctx.socket(zmq.PUSH)
-    sockAck = ctx.socket(zmq.PUB)
+    sockUrlIn = ctx.socket(zmq.PULL)
+    sockUrlOut = ctx.socket(zmq.PUSH)
+    sockAckOut = ctx.socket(zmq.PUB)
+    sockAckIn = ctx.socket(zmq.SUB)
 
-    sockUrl.connect(URL_BACKEND_ADDRESS)
-    sockDocumentPath.connect(DOCUMENT_PATH_FRONTEND_ADDRESS)
-    sockAck.connect(ACK_FRONTEND_ADDRESS)
+    sockUrlIn.connect(URL_BACKEND_ADDRESS)
+    sockUrlOut.connect(URL_FRONTEND_ADDRESS)
+    sockAckOut.connect(ACK_FRONTEND_ADDRESS)
+    sockAckIn.connect(ACK_BACKEND_ADDRESS)
+
+    sockUrlOut.send_string(LOADER_START_ADDRESS)
+
+    sockAckIn.setsockopt(zmq.SUBSCRIBE, b"")
+
+    poller = zmq.Poller()
+    poller.register(sockUrlIn, zmq.POLLIN)
+    poller.register(sockAckIn, zmq.POLLIN)
+
     if DO_LOG:
         print("Loader connected to hosts")
 
@@ -47,30 +84,34 @@ def main():
 
     start = datetime.datetime.now()
     documentsLoaded = 0
-    try:
-        while documentsLoaded < documentsRequired:
-            url = sockUrl.recv_string()
+    while documentsLoaded < documentsRequired:
+        try:
+            socks = dict(poller.poll())
+        except KeyboardInterrupt:
+            break
+        if sockAckIn in socks:
+            [status, message] = sockAckIn.recv_multipart()
+            if status == SUCCESS:
+                documentsLoaded += 1
+        if sockUrlIn in socks:
+            url = sockUrlIn.recv_string()
             hash = HASH_FUNC(url.encode("utf-8")).hexdigest()
             page = loadDocument(session, url)
 
             if page is None:
-                sockAck.send_multipart([b'status', FAILED])
+                sockAckOut.send_multipart([b'status', FAILED])
                 continue
-
-            documentPath = f"{DOCUMENTS_STORAGE_PATH}/{hash}.html"
-            with open(documentPath, "w") as file:
-                file.write(page)
-
-            documentsLoaded += 1
-            sockAck.send_multipart([b'status', SUCCESS])
-            sockDocumentPath.send_string(documentPath)
             if DO_LOG:
-                print(f"{url} loaded")
+                print(f"Loaded: {url}")
+            page = parseAndProcessPage(page, sockUrlOut)
+            if page is not None:
+                documentPath = f"{DOCUMENTS_STORAGE_PATH}/{hash}.html"
+                with open(documentPath, "w") as file:
+                    file.write(url + '\n')
+                    file.write(page[:30000]) # first 30 kb in order to fit into 40G memory
 
-    except KeyboardInterrupt:
-        pass
-
-    sockAck.send_multipart([b'exit', b""])
+                documentsLoaded += 1
+                sockAckOut.send_multipart([b'status', SUCCESS])
 
     end = datetime.datetime.now()
     timeElapsed = (end - start).seconds

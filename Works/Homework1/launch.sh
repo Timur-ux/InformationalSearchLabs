@@ -22,8 +22,8 @@ get_script_dir()
     echo "$SCRIPT_DIR"
 }
 
-if [[ $# -lt 2 ]]; then
-	echo "Usage: $0 <parsers count> <loaders count>"
+if [[ $# -lt 1 ]]; then
+	echo "Usage: $0 <loaders count>"
 	exit 0
 fi
 
@@ -41,30 +41,23 @@ if [[ ! -z "$bgIds" ]]; then
 fi
 
 
-parsersCount=$1
-loadersCount=$2
+loadersCount=$1
 script_dir=$(get_script_dir)
 
+echo "Create logs dir if not exists"
+mkdir -p ./logs
+
 echo "Starting proxies..."
-$script_dir/venv/bin/python $script_dir/proxyAck.py &
-$script_dir/venv/bin/python $script_dir/proxyDocumentPath.py &
-$script_dir/venv/bin/python $script_dir/proxyUrl.py &
+unbuffer $script_dir/venv/bin/python $script_dir/proxyAck.py > ./logs/proxyAck &
+unbuffer $script_dir/venv/bin/python $script_dir/proxyUrl.py > ./logs/proxyUrl &
 
 echo "Proxy balancers is launched, wait $delay seconds"
 sleep $delay
 
-echo "Starting parsers..."
-
-for i in $(seq 1 $parsersCount); do
-	$script_dir/venv/bin/python $script_dir/parser.py $loadersCount &
-done
-
-echo "Parsers launched"
 echo "Starting loaders..."
 
 for i in $(seq 1 $loadersCount); do
-	$script_dir/venv/bin/python $script_dir/loader.py $loadersCount &
+	unbuffer $script_dir/venv/bin/python $script_dir/loader.py $loadersCount > ./logs/loader$i &
 done
 
-echo "Loaders launched"
-
+echo "Parsers launched"
