@@ -1,3 +1,11 @@
+# c++ aux
+compile_commands.json
+# crawles state folder
+*crawls/
+# reports aux
+*_minted*/
+report_pattern/
+*.aux
 # ---> Custom
 *pyrightconfig.json
 documents/*.html
