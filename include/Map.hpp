@@ -23,13 +23,13 @@ Balance &operator-=(Balance &balance, int diff);
  */
 template <Comparable TKey, Defaulted TVal> class Map {
 
-	struct NodeData {
-		const TKey key;
-		TVal value;
+  struct NodeData {
+    const TKey key;
+    TVal value;
 
-		NodeData() = default;
-		NodeData(const TKey &k) : key(k) {}
-	};
+    NodeData() = default;
+    NodeData(const TKey &k) : key(k) {}
+  };
 
   struct Node : public NodeData {
     Balance balance = Balanced;
@@ -39,7 +39,14 @@ template <Comparable TKey, Defaulted TVal> class Map {
     Node() = default;
     Node(const TKey &k, Node *p) : NodeData(k), parent(p) {}
 
-		void print(std::ostream & os, size_t depth = 0) const;
+    void print(std::ostream &os, size_t depth = 0) const;
+
+		~Node() {
+			if(left) 
+				delete left;
+			if(right) 
+				delete right;
+		}
   };
 
   size_t size_ = 0;
@@ -63,40 +70,116 @@ public:
   TVal &operator[](const TKey &key);
   const TVal &operator[](const TKey &key) const;
 
-	void print(std::ostream & os) const;
-	bool contains(const TKey & key) const;
+  void print(std::ostream &os) const;
+  bool contains(const TKey &key) const;
 
-	template <typename TData>
-	class MapIterator;
+  template <typename TData> class MapIterator;
 
-	using iterator = MapIterator<NodeData>;
-	using const_iterator = MapIterator<const NodeData>;
+  using iterator = MapIterator<NodeData>;
+  using const_iterator = MapIterator<const NodeData>;
 
-	template <typename TData>
-	class MapIterator {
-		public:
-			using iterator_category = std::bidirectional_iterator_tag;
-			using difference_type = std::ptrdiff_t;
-			using value_type = TData;
-			using pointer = TData *;
-			using reference = TData &;
-		protected:
-			Node * ptr_;
-		public:
-			MapIterator(Node * ptr) : ptr_(ptr) {}
+  template <typename TData> class MapIterator {
+  public:
+    using iterator_category = std::bidirectional_iterator_tag;
+    using difference_type = std::ptrdiff_t;
+    using value_type = TData;
+    using pointer = TData *;
+    using reference = TData &;
 
-			reference operator*() { return *ptr_; }
-			pointer operator->() {return ptr_;}
-	};
-	
-	iterator begin() {
-		if(!root_)
-			return iterator(root_);
-		Node * node = root_;
-		while(node->left != nullptr) 
-			node = node->left;
+  protected:
+    Node *ptr_;
 
-		return iterator(node);
+  public:
+    MapIterator(Node *ptr) : ptr_(ptr) {}
+
+    reference operator*() { return *ptr_; }
+    pointer operator->() { return ptr_; }
+
+    bool operator==(const MapIterator<TData> &other) const {
+      return ptr_ == other.ptr_;
+    }
+
+    // prefix
+    MapIterator<TData> &operator++() {
+      if (!ptr_)
+        return *this;
+
+      if (ptr_->right) {
+        ptr_ = ptr_->right;
+        while (ptr_->left)
+          ptr_ = ptr_->left;
+        return *this;
+      }
+
+			Node *parent = ptr_->parent;
+			while(parent != nullptr && parent->key < ptr_->key) 
+				parent = parent->parent;
+
+      ptr_ = parent;
+      return *this;
+    }
+
+    // postfix
+    MapIterator<TData> operator++(int) {
+      MapIterator<TData> result(ptr_);
+      ++(*this);
+      return result;
+    }
+
+    MapIterator<TData> &operator--() {
+      if (!ptr_)
+        return *this;
+
+      if (ptr_->left) {
+        ptr_ = ptr_->left;
+        while (ptr_->right)
+          ptr_ = ptr_->right;
+        return *this;
+      }
+
+			Node *parent = ptr_->parent;
+			while(parent != nullptr &&  ptr_->key < parent->key) 
+				parent = parent->parent;
+
+      ptr_ = ptr_->parent;
+      return *this;
+    }
+
+    MapIterator<TData> operator--(int) {
+      MapIterator<TData> result(ptr_);
+      --(*this);
+      return result;
+    }
+  };
+
+  iterator begin() {
+    if (!root_)
+      return iterator(root_);
+    Node *node = root_;
+    while (node->left != nullptr)
+      node = node->left;
+
+    return iterator(node);
+  }
+  iterator end() { return iterator(nullptr); }
+
+	const_iterator begin() const {
+    if (!root_)
+      return iterator(root_);
+    Node *node = root_;
+    while (node->left != nullptr)
+      node = node->left;
+
+    return iterator(node);
+	}
+
+	const_iterator end() const {
+		return iterator(nullptr);
+	}
+
+	~Map() {
+		if(root_) 
+			delete root_;
 	}
 };
 
@@ -276,43 +359,43 @@ void Map<TKey, TVal>::rotateRight(Node *node) {
 }
 
 template <Comparable TKey, Defaulted TVal>
-std::ostream & operator<<(std::ostream & os, const Map<TKey, TVal>& map) {
-	map.print(os);
+std::ostream &operator<<(std::ostream &os, const Map<TKey, TVal> &map) {
+  map.print(os);
 
-	return os;
+  return os;
 }
 
 template <Comparable TKey, Defaulted TVal>
-void Map<TKey, TVal>::print(std::ostream & os) const {
-	if(root_) 
-		root_->print(os);
+void Map<TKey, TVal>::print(std::ostream &os) const {
+  if (root_)
+    root_->print(os);
 }
 
 template <Comparable TKey, Defaulted TVal>
-void Map<TKey, TVal>::Node::print(std::ostream & os, size_t depth) const {
-	if(right) 
-		right->print(os, depth+1);
-		
-	size_t d = depth;
-	while(d-- > 0) 
-		os << '\t';
-	os << this->key << '\n';
+void Map<TKey, TVal>::Node::print(std::ostream &os, size_t depth) const {
+  if (right)
+    right->print(os, depth + 1);
 
-	if(left) 
-		left->print(os, depth+1);
+  size_t d = depth;
+  while (d-- > 0)
+    os << '\t';
+  os << this->key << '\n';
+
+  if (left)
+    left->print(os, depth + 1);
 }
 
 template <Comparable TKey, Defaulted TVal>
-bool Map<TKey, TVal>::contains(const TKey & key) const {
-	Node * node = root_;
-	while(node != nullptr && node->key != key) {
-		if(key < node->key) 
-			node = node->left;
-		else
-			node = node->right;
-	}
+bool Map<TKey, TVal>::contains(const TKey &key) const {
+  Node *node = root_;
+  while (node != nullptr && node->key != key) {
+    if (key < node->key)
+      node = node->left;
+    else
+      node = node->right;
+  }
 
-	return (node != nullptr);
+  return (node != nullptr);
 }
 
 } // namespace IR
