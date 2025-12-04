@@ -10,7 +10,7 @@
 
 namespace IR {
 template <typename T> class Vector {
-private:
+protected:
   T *data_ = nullptr;
   size_t size_ = 0;
   size_t capacity_ = 1;
@@ -32,6 +32,8 @@ public:
   size_t capacity() const;
   const T *data() const;
   T *data();
+
+	Vector<T> &reserve(size_t n);
 
   Vector<T> &push_back(const T &value);
   Vector<T> &pop_back();
@@ -345,6 +347,21 @@ size_t VectorView<T>::size() const {
 template <typename T>
 const T *VectorView<T>::data() const {
 	return data_;
+}
+
+template <typename T>
+Vector<T>& Vector<T>::reserve(size_t n) {
+	if(n < capacity_) 
+		return *this;
+
+	capacity_ = n;
+	T *old = data_;
+	data_ = new T[capacity_];
+	for(size_t i = 0; i < size_; ++i) 
+		data_[i] = std::move(old[i]);
+
+	delete [] old;
+	return *this;
 }
 
 } // namespace IR
