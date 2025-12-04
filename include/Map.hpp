@@ -29,6 +29,7 @@ template <Comparable TKey, Defaulted TVal> class Map {
 
     NodeData() = default;
     NodeData(const TKey &k) : key(k) {}
+		NodeData(const TKey &k, const TVal & val) : key(k), value(val) {}
   };
 
   struct Node : public NodeData {
@@ -37,22 +38,71 @@ template <Comparable TKey, Defaulted TVal> class Map {
     Node *parent = nullptr, *left = nullptr, *right = nullptr;
 
     Node() = default;
+    Node(const Node &other)
+        : NodeData(other.key, other.value), balance(other.balance) {
+      if (other.left)
+        left = new Node(*other.left), left->parent = this;
+      if (other.right)
+        right = new Node(*other.right), right->parent = this;
+    }
+
+    Node(Node &&other) noexcept
+        : NodeData(std::move(other.key), std::move(other.value)),
+          balance(std::move(other.balance)) {
+      if (other.left)
+        left = other.left, other.left = nullptr, left->parent = this;
+      if (other.right)
+        right = other.right, other.right = nullptr, right->parent = this;
+    }
+
+    Node &operator=(const Node &other) {
+      this->key = other.key;
+      this->value = other.value;
+      balance = other.balance;
+      parent = other.parent;
+
+      if (other.left)
+        left = new Node(*other.left), left->parent = this;
+      if (other.right)
+        right = new Node(*other.right), right->parent = this;
+
+      return *this;
+    }
+
+    Node &operator=(Node &&other) noexcept {
+      if (this == &other)
+        return *this;
+
+      this->key = std::move(other.key);
+      this->value = std::move(other.value);
+      balance = std::move(other.balance);
+      parent = std::move(other.parent);
+
+      if (other.left)
+        left = other.left, left->parent = this;
+      if (other.right)
+        right = other.right, right->parent = this;
+
+      return *this;
+    }
+
     Node(const TKey &k, Node *p) : NodeData(k), parent(p) {}
 
     void print(std::ostream &os, size_t depth = 0) const;
 
-		~Node() {
-			if(left) 
-				delete left;
-			if(right) 
-				delete right;
-		}
+    ~Node() {
+      if (left)
+        delete left;
+      if (right)
+        delete right;
+    }
   };
 
   size_t size_ = 0;
   Node *root_ = nullptr;
 
   TVal &findOrInsert(const TKey &key);
+  const TVal &find(const TKey &key) const;
   void rebalance(Node *node);
 
   void rotateLeft(Node *node);
@@ -63,6 +113,35 @@ template <Comparable TKey, Defaulted TVal> class Map {
 
 public:
   Map() = default;
+  Map(const Map &other) {
+    if (other.size() > 0)
+      root_ = new Node(*other.root_), size_ = other.size_;
+  }
+  Map(Map &&other) noexcept
+      : root_(other.root_), size_(other.size_) {
+    other.root_ = nullptr;
+    other.size_ = 0;
+  }
+  Map &operator=(const Map &other) {
+    if (other.size() > 0)
+      root_ = new Node(*other.root_), size_ = other.size_;
+    else if (root_)
+      delete root_, root_ = nullptr, size_ = 0;
+    return *this;
+  }
+
+  Map &operator=(Map &&other) noexcept {
+    if (this == &other)
+      return *this;
+    if (root_)
+      delete root_;
+    root_ = other.root_;
+    size_ = other.size_;
+
+    other.root_ = nullptr;
+    other.size_ = 0;
+    return *this;
+  }
 
   size_t size() const { return size_; }
   void insert(const TKey &key, const TVal &value);
@@ -111,9 +190,9 @@ public:
         return *this;
       }
 
-			Node *parent = ptr_->parent;
-			while(parent != nullptr && parent->key < ptr_->key) 
-				parent = parent->parent;
+      Node *parent = ptr_->parent;
+      while (parent != nullptr && parent->key < ptr_->key)
+        parent = parent->parent;
 
       ptr_ = parent;
       return *this;
@@ -137,9 +216,9 @@ public:
         return *this;
       }
 
-			Node *parent = ptr_->parent;
-			while(parent != nullptr &&  ptr_->key < parent->key) 
-				parent = parent->parent;
+      Node *parent = ptr_->parent;
+      while (parent != nullptr && ptr_->key < parent->key)
+        parent = parent->parent;
 
       ptr_ = ptr_->parent;
       return *this;
@@ -163,25 +242,41 @@ public:
   }
   iterator end() { return iterator(nullptr); }
 
-	const_iterator begin() const {
+  const_iterator begin() const {
     if (!root_)
-      return iterator(root_);
+      return const_iterator(root_);
     Node *node = root_;
     while (node->left != nullptr)
       node = node->left;
 
-    return iterator(node);
-	}
+    return const_iterator(node);
+  }
 
-	const_iterator end() const {
-		return iterator(nullptr);
-	}
+  const_iterator end() const { return const_iterator(nullptr); }
 
-	~Map() {
-		if(root_) 
-			delete root_;
-	}
+  ~Map() {
+    if (root_)
+      delete root_;
+  }
 };
+
+template <Comparable TKey, Defaulted TVal>
+const TVal &Map<TKey, TVal>::find(const TKey &key) const {
+  if (!root_)
+    throw std::invalid_argument("Node with given key not found");
+
+  Node *node = root_, *p = node;
+  while (node != nullptr && node->key != key) {
+    p = node;
+    if (key < node->key)
+      node = node->left;
+    else
+      node = node->right;
+  }
+  if (node != nullptr)
+    return node->value;
+  throw std::invalid_argument("Node with given key not found");
+}
 
 template <Comparable TKey, Defaulted TVal>
 TVal &Map<TKey, TVal>::findOrInsert(const TKey &key) {
@@ -225,7 +320,7 @@ TVal &Map<TKey, TVal>::operator[](const TKey &key) {
 
 template <Comparable TKey, Defaulted TVal>
 const TVal &Map<TKey, TVal>::operator[](const TKey &key) const {
-  return findOrInsert(key);
+  return find(key);
 }
 
 template <Comparable TKey, Defaulted TVal>
