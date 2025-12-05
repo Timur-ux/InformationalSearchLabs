@@ -1,47 +1,36 @@
 #ifndef ALGO_HPP_
 #define ALGO_HPP_
 #include "concepts.hpp"
-#include <algorithm>
+#include <iterator>
 #pragma once
 
- //    {
- //      typedef typename iterator_traits<_ForwardIterator>::difference_type
-	// _DistanceType;
-	//
- //      _DistanceType __len = std::distance(__first, __last);
-	//
- //      while (__len > 0)
-	// {
-	//   _DistanceType __half = __len >> 1;
-	//   _ForwardIterator __middle = __first;
-	//   std::advance(__middle, __half);
-	//   if (__comp(__middle, __val))
-	//     {
-	//       __first = __middle;
-	//       ++__first;
-	//       __len = __len - __half - 1;
-	//     }
-	//   else
-	//     __len = __half;
-	// }
- //      return __first;
- //    }
-namespace IR {
+namespace IR::algo {
 template <RandomIterator TIt, ConvertibleFromIterator<TIt> TVal>
-  requires ComparableIterator<TIt> && Comparable<TVal>
-TIt lowrBound(TIt first, TIt last, const TVal &value) {
-	std::lower_bound()
-	TIt mid;
-	while(last - first >= 0) {
-		mid = first + (last - first) / 2;
-		if(*mid < value) 
-			first = (++mid);
-		else if(*mid > value)
-			last = (--mid);
-		else
-			return mid;
+  requires Comparable<TVal>
+TIt lowerBound(TIt first, TIt last, const TVal &value) {
+	using Distance = std::iterator_traits<TIt>::difference_type;
+
+	Distance len = last - first;
+	while(len > 0) {
+		Distance half = len >> 1; // len / 2
+		TIt mid = first;
+		mid = mid + half;
+		if(*mid < value) {
+			first = mid;
+			++first;
+			len -= half + 1;
+		} else
+			len = half;
 	}
-	return last;
+	
+	return first;
 }
-} // namespace IR
+template <RandomIterator TIt, ConvertibleFromIterator<TIt> TVal>
+  requires Comparable<TVal>
+bool binarySearch (TIt first, TIt last, const TVal &value) {
+	TIt res = lowerBound(first, last, value);
+
+	return res != last && *res == value;
+}
+} // namespace IR::algo
 #endif // !ALGO_HPP_

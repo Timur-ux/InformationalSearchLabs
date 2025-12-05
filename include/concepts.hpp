@@ -19,11 +19,6 @@ concept RandomIterator =
     std::is_same_v<typename std::iterator_traits<T>::iterator_category,
                    std::random_access_iterator_tag>;
 
-template <typename T>
-concept ComparableIterator = requires(const T &a, const T &b) {
-  { *a < *b } -> std::same_as<bool>;
-};
-
 template <typename TVal, typename TIt>
 concept ConvertibleFromIterator = requires (TIt iter) {
 	{*iter} -> std::convertible_to<TVal>;

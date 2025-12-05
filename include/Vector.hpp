@@ -104,12 +104,22 @@ public:
       return VectorIterator<TData>(ptr_ + diff);
     }
 
+    VectorIterator<TData>& operator+=(difference_type diff) {
+      ptr_ += diff;
+			return *this;
+    }
+
     VectorIterator<TData> operator-(difference_type diff) const {
       return VectorIterator<TData>(ptr_ - diff);
     }
 
     difference_type operator-(const VectorIterator<TData> &other) const {
       return ptr_ - other.ptr_;
+    }
+
+    VectorIterator<TData>& operator-=(difference_type diff) {
+      ptr_ -= diff;
+			return *this;
     }
   };
 };

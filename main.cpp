@@ -1,26 +1,46 @@
-#include "Trie.hpp"
+#include "Map.hpp"
+#include "Vector.hpp"
+#include "algo.hpp"
+#include <algorithm>
 #include <cstring>
+#include <ios>
 #include <iostream>
 
 int main(int argc, const char *argw[]) {
-  IR::Trie<char, int> trie;
+	IR::Map<int, bool> map;
+	int n;
+	std::cin >> n;
+	while(n != 0) {
+		map[n] = true;
+		for(const auto &[key, _] : map) 
+			std::cout << key << ' ';
+		std::cout << '\n';
 
-	const char *strings[] = {"some", "say",  "you", "don't",
-												 "need", "that", "way"};
-
-  size_t n = sizeof(strings) / sizeof(const char *);
-  std::cout << "n = " << n << '\n';
-  for (size_t i = 0; i < n-1; ++i)
-    trie.insert(strings[i], strlen(strings[i]), int(i));
-
-  for (size_t i = 0; i < n; ++i) {
-		const auto &val = trie.get(strings[i], strlen(strings[i]));
-		if(val) 
-			std::cout << strings[i] << " in the trie! Value = " << *val << '\n';
-		else
-			std::cout << strings[i] << " NOT in the trie!"<< '\n';
-			
+		std::cin >> n;
 	}
+
+	IR::Vector<int> sorted;
+	for(const auto &[key, _] : map) 
+		sorted.push_back(key), sorted.push_back(key);
+	n = 1;
+	while(n != 0) {
+		for(const auto &val : sorted) 
+			std::cout << val << ' ';
+		std::cout << '\n';
+
+		std::cout << "Input value to search(0 to break): ";
+		std::cin >> n;
+
+
+		auto it = IR::algo::lowerBound(sorted.begin(), sorted.end(), n), it2 = std::lower_bound(std::begin(sorted), std::end(sorted), n);
+		bool found = IR::algo::binarySearch(std::begin(sorted), std::end(sorted), n);
+
+		std::cout << "Lower bound index = " << it - sorted.begin() << "(stl version = "<< it2 - sorted.begin() <<"); value = " << *it << '\n';
+		std::cout << "Found by bin search = " << std::boolalpha << found << '\n';
+	}
+
+
+	
 
   return 0;
 }
