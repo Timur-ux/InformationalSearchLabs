@@ -1,5 +1,6 @@
 #ifndef VECTOR_HPP_
 #define VECTOR_HPP_
+#include <cassert>
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
@@ -15,11 +16,13 @@ protected:
   size_t size_ = 0;
   size_t capacity_ = 1;
 
+  void realloc(size_t newCapacity);
+
 public:
   Vector();
   Vector(size_t n);
   Vector(size_t n, const T &value);
-	Vector(T * data, size_t len);
+  Vector(T *data, size_t len);
 
   Vector(const Vector &other);
   Vector(Vector &&other) noexcept;
@@ -33,9 +36,10 @@ public:
   const T *data() const;
   T *data();
 
-	Vector<T> &reserve(size_t n);
+  Vector<T> &reserve(size_t n);
 
   Vector<T> &push_back(const T &value);
+  Vector<T> &push_back(T &&value);
   Vector<T> &pop_back();
 
   T &operator[](size_t i);
@@ -54,6 +58,26 @@ public:
 
   const_iterator begin() const;
   const_iterator end() const;
+
+  /**
+   * @brief Insert value before given position
+   *
+   * @param it iterator before insertion will be
+   * @param value value to insert
+   *
+   * @return iterator on newly inserted value
+   */
+  iterator insert(iterator it, const T &value);
+
+  /**
+   * @brief Insert value before given index
+   *
+   * @param index index before insertion will be
+   * @param value value to insert
+   *
+   * @return iterator on newly inserted value
+   */
+  iterator insert(size_t index, const T &value);
 
   template <typename TData> class VectorIterator {
   public:
@@ -104,9 +128,9 @@ public:
       return VectorIterator<TData>(ptr_ + diff);
     }
 
-    VectorIterator<TData>& operator+=(difference_type diff) {
+    VectorIterator<TData> &operator+=(difference_type diff) {
       ptr_ += diff;
-			return *this;
+      return *this;
     }
 
     VectorIterator<TData> operator-(difference_type diff) const {
@@ -117,9 +141,9 @@ public:
       return ptr_ - other.ptr_;
     }
 
-    VectorIterator<TData>& operator-=(difference_type diff) {
+    VectorIterator<TData> &operator-=(difference_type diff) {
       ptr_ -= diff;
-			return *this;
+      return *this;
     }
   };
 };
@@ -193,11 +217,10 @@ Vector<T> &Vector<T>::operator=(Vector<T> &&other) noexcept {
 }
 
 template <typename T>
-Vector<T>::Vector(T* data, size_t len)
-	: size_(len), capacity_(len) {
-	data_ = new T[capacity_];
-	for(size_t i = 0; i < len; ++i) 
-		data_[i] = data[i];
+Vector<T>::Vector(T *data, size_t len) : size_(len), capacity_(len) {
+  data_ = new T[capacity_];
+  for (size_t i = 0; i < len; ++i)
+    data_[i] = data[i];
 }
 
 // -----------------
@@ -205,8 +228,8 @@ Vector<T>::Vector(T* data, size_t len)
 // -----------------
 
 template <typename T> Vector<T>::~Vector() {
-	if(data_) 
-		delete [] data_;
+  if (data_)
+    delete[] data_;
 }
 
 template <typename T> Vector<T>::iterator Vector<T>::begin() {
@@ -225,23 +248,38 @@ template <typename T> Vector<T>::const_iterator Vector<T>::end() const {
   return iterator(data_ + size_);
 }
 
+template <typename T>
+void Vector<T>::realloc(size_t newCapacity) {
+	if(newCapacity <= capacity_) 
+		return;
+
+	
+	capacity_ = newCapacity;
+	T* old = data_;
+	data_ = new T[capacity_];
+	for(size_t i = 0; i < size_; ++i) 
+		data_[i] = std::move(old[i]);
+	delete [] old;
+}
+
 template <typename T> Vector<T> &Vector<T>::push_back(const T &value) {
   data_[size_++] = value;
-  if (size_ >= capacity_) {
-    capacity_ *= 2;
-		T* old = data_;
-		data_ = new T[capacity_];
-		for(size_t i = 0; i < size_; ++i) 
-			data_[i] = std::move(old[i]);
-		// delete [] old;
-	}
+  if (size_ >= capacity_)
+    realloc(capacity_ * 2);
+  return *this;
+}
 
+template <typename T> Vector<T> &Vector<T>::push_back(T &&value) {
+  data_[size_++] = std::move(value);
+  if (size_ >= capacity_)
+    realloc(capacity_ * 2);
   return *this;
 }
 
 template <typename T> Vector<T> &Vector<T>::pop_back() {
   if (size_ > 0)
     --size_;
+	return *this;
 }
 
 template <typename T> size_t Vector<T>::size() const { return size_; }
@@ -271,6 +309,21 @@ template <typename T> const T &Vector<T>::at(size_t i) const {
 template <typename T> const T *Vector<T>::data() const { return data_; }
 
 template <typename T> T *Vector<T>::data() { return data_; }
+
+template <typename T>
+Vector<T>::iterator Vector<T>::insert(iterator it, const T &value) {
+	++size_;
+	auto current = end() - 1;
+	while(current != it)
+		*current = *(current - 1);
+
+	*current = value;
+	size_t i = current - begin();
+  if (size_ >= capacity_)
+    realloc(capacity_ * 2);
+
+	return begin() + i;
+}
 
 template <typename T> class VectorView {
   const T *data_;
@@ -330,48 +383,40 @@ VectorView<T>::VectorView(const T *data, size_t len)
     : data_(data), size_(len) {}
 
 template <typename T> const T &VectorView<T>::operator[](size_t i) const {
-	return data_[i];
+  return data_[i];
 }
 
 template <typename T> const T &VectorView<T>::at(size_t i) const {
-	if(i >= size_) 
+  if (i >= size_)
     throw std::out_of_range("Index out of range(i >= vector::size)");
 
-	return data_[i];
+  return data_[i];
 }
 template <typename T>
 VectorView<T>::const_iterator VectorView<T>::begin() const {
-	return const_iterator(data_);
+  return const_iterator(data_);
 }
 
-template <typename T>
-VectorView<T>::const_iterator VectorView<T>::end() const {
-	return const_iterator(data_ + size_);
+template <typename T> VectorView<T>::const_iterator VectorView<T>::end() const {
+  return const_iterator(data_ + size_);
 }
 
-template <typename T>
-size_t VectorView<T>::size() const {
-	return size_;
-}
+template <typename T> size_t VectorView<T>::size() const { return size_; }
 
-template <typename T>
-const T *VectorView<T>::data() const {
-	return data_;
-}
+template <typename T> const T *VectorView<T>::data() const { return data_; }
 
-template <typename T>
-Vector<T>& Vector<T>::reserve(size_t n) {
-	if(n < capacity_) 
-		return *this;
+template <typename T> Vector<T> &Vector<T>::reserve(size_t n) {
+  if (n < capacity_)
+    return *this;
 
-	capacity_ = n;
-	T *old = data_;
-	data_ = new T[capacity_];
-	for(size_t i = 0; i < size_; ++i) 
-		data_[i] = std::move(old[i]);
+  capacity_ = n;
+  T *old = data_;
+  data_ = new T[capacity_];
+  for (size_t i = 0; i < size_; ++i)
+    data_[i] = std::move(old[i]);
 
-	delete [] old;
-	return *this;
+  delete[] old;
+  return *this;
 }
 
 } // namespace IR
