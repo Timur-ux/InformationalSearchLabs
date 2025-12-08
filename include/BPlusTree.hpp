@@ -26,6 +26,7 @@ template <Comparable TKey, typename TVal> class BPlusTree {
                                                         // number used for
                                                         // creating unique keys
   using value_type = TVal;
+  class NodeManager;
   /**
    * @brief Each node have keys.
    * If it inner node(i.e. not leaf) it have links to childs
@@ -51,6 +52,7 @@ template <Comparable TKey, typename TVal> class BPlusTree {
     long nextNodeId, parentId;
 
     size_t n() const { return keys.size(); }
+    void print(std::ostream &os, int depth, NodeManager &manager);
   };
 
   // Manage nodes (loading, saving)
@@ -63,6 +65,7 @@ template <Comparable TKey, typename TVal> class BPlusTree {
     /**
      * @brief Load and read parent id from node's data
      * Throws error if parent node not pointed (i.e. < 0)
+		 * Used when you don't know parentId. When loading parent of current node for example
      *
      * @param id -- node to load id
      *
@@ -72,6 +75,9 @@ template <Comparable TKey, typename TVal> class BPlusTree {
 
     /**
      * @brief load node and set it parent's id
+		 * Used when you know parent id of loading node. When loading child of current node for example
+		 * It is IMPORTANT to use this method when you know parent's id because in other cases links to
+		 * parents may be incorrect via splits and merges when inserting and deleting
      *
      * @param id -- node to load id
      * @param currentNodeId -- id that will be set as parent id
@@ -101,6 +107,7 @@ template <Comparable TKey, typename TVal> class BPlusTree {
 
 public:
   class Cursor {
+		friend BPlusTree;
     using values_type = Vector<std::pair<TKey, TVal>>;
     values_type vals_;
 
@@ -146,7 +153,7 @@ public:
   /**
    * @brief For each node print
    *
-   * nodeId; isLeaf; level; nextNodeId;
+   * nodeId; isLeaf; level; nextNodeId; parentId;
    * key[0] ... key[n-1]
    * (link[0]/value[0]) ... (link[n]/value[n-1])
    *
@@ -178,7 +185,7 @@ void BPlusTree<TKey, TVal>::insert(const TKey &key_, const TVal &value) {
             node.level > 0 && !node.isLeaf));
     auto it = algo::lowerBound(std::begin(node.keys), std::end(node.keys), key);
     auto i = it - node.keys.begin();
-    node = nodeManager_.load(node.links.at(i));
+    node = nodeManager_.load(node.links.at(i), node.id);
   }
 
   // do insertion
@@ -202,14 +209,15 @@ BPlusTree<TKey, TVal>::Cursor BPlusTree<TKey, TVal>::find(const TKey &key) {
 template <Comparable TKey, typename TVal>
 BPlusTree<TKey, TVal>::Cursor BPlusTree<TKey, TVal>::find(const TKey &lower_,
                                                           const TKey &higher_) {
-  key_type lower = {lower, randomGenerator_()},
+  typename Cursor::values_type result;
+  key_type lower = {lower_, randomGenerator_()},
            higher = {higher_, randomGenerator_()};
-  auto cmp = [](const key_type &k1, const key_type &k2) {
-    return k1.first < k2.first;
+	std::function<bool(const key_type &, const key_type&)> cmp = [](const key_type &k1, const key_type &k2) -> bool {
+    return k1.first <= k2.first;
   };
   assert((cmp(lower, higher)));
   if (rootId_ < 0)
-    return Cursor(Cursor::values_type());
+    return Cursor(result);
 
   Node node = nodeManager_.load(rootId_);
   while (node.level > 0) {
@@ -217,13 +225,12 @@ BPlusTree<TKey, TVal>::Cursor BPlusTree<TKey, TVal>::find(const TKey &lower_,
 
     auto it = algo::lowerBound(node.keys.begin(), node.keys.end(), lower, cmp);
     auto i = it - node.keys.begin();
-    node = nodeManager_.load(node.links[i]);
+    node = nodeManager_.load(node.links.at(i), node.id);
   }
-  typename Cursor::values_type result;
   auto begin = node.keys.begin(), end = node.keys.end(),
        it = algo::lowerBound(begin, end, lower, cmp);
   while (cmp(*it, higher)) {
-    result.push_back({*it, node.values.at(it - begin)});
+    result.push_back(std::pair{it->first, node.values.at(it - begin)});
     ++it;
     if (it == end) {
       if (node.nextNodeId < 0)
@@ -288,7 +295,7 @@ long BPlusTree<TKey, TVal>::split(Node &node) {
   if (node.id == rootId_)
     parent = nodeManager_.create(false, -1, node.level + 1),
     parent.links.push_back(node.id), rootId_ = parent.id,
-		node.parentId = parent.id;
+    node.parentId = parent.id;
   else
     parent = nodeManager_.load(node.parentId);
 
@@ -315,6 +322,9 @@ long BPlusTree<TKey, TVal>::split(Node &node) {
        ++currentInd)
     right.keys.push_back(std::move(left.keys.at(currentInd)));
   size_t nKeys = left.keys.size();
+  if (!left.isLeaf) // if left inner node we additionaly remove key that was
+                    // moved up
+    ++nKeys;
   for (size_t currentInd = midInd + 1; currentInd < nKeys; ++currentInd)
     left.keys.pop_back();
 
@@ -350,45 +360,43 @@ long BPlusTree<TKey, TVal>::split(Node &node) {
 }
 
 template <Comparable TKey, typename TVal>
-void BPlusTree<TKey, TVal>::print(std::ostream &os) {
-  Queue<long> nodes;
-  nodes.push(rootId_);
-
-  size_t depth = 0;
-  while (!nodes.empty()) {
-    size_t currentLevel = nodes.size();
-    for (size_t i = 0; i < currentLevel; ++i) {
-      long nodeId = nodes.front();
-      nodes.pop();
-      Node node = nodeManager_.load(nodeId);
-      for (size_t _ = 0; _ < depth; ++_)
-        os << " | ";
-      os << "node id = " << node.id << std::boolalpha
-         << "; isLeaf = " << node.isLeaf << "; level = " << node.level
-         << "; nextNodeId = " << node.nextNodeId << '\n';
-      for (size_t _ = 0; _ < depth; ++_)
-        os << " | ";
-      os << "keys = ";
-      for (const auto &key : node.keys)
-        os << key.first << ' ';
-      os << '\n';
-      for (size_t _ = 0; _ < depth; ++_)
-        os << " | ";
-      if (node.isLeaf) {
-        os << "values = ";
-        for (const auto &value : node.values)
-          os << value << ' ';
-      } else {
-        os << "links = ";
-        for (const auto &link : node.links)
-          os << link << ' ';
-      }
-      os << '\n';
-      for (const auto &link : node.links)
-        nodes.push(link);
-    }
-    ++depth;
+void BPlusTree<TKey, TVal>::Node::print(std::ostream &os, int depth,
+                                        NodeManager &manager) {
+  for (size_t _ = 0; _ < depth; ++_)
+    os << " | ";
+  os << "id = " << id << std::boolalpha << "; isLeaf = " << isLeaf
+     << "; level = " << level << "; nextNodeId = " << nextNodeId << "; parent id = " << parentId << '\n';
+  for (size_t _ = 0; _ < depth; ++_)
+    os << " | ";
+  os << "keys = ";
+  for (const auto &key : keys)
+    os << key.first << ' ';
+  os << '\n';
+  for (size_t _ = 0; _ < depth; ++_)
+    os << " | ";
+  if (isLeaf) {
+    os << "values = ";
+    for (const auto &value : values)
+      os << value << ' ';
+  } else {
+    os << "links = ";
+    for (auto link : links)
+      os << link << ' ';
   }
+  os << '\n';
+
+  for (auto link : links) {
+    Node child = manager.load(link, id);
+    child.print(os, depth + 1, manager);
+  }
+}
+
+template <Comparable TKey, typename TVal>
+void BPlusTree<TKey, TVal>::print(std::ostream &os) {
+  if (rootId_ < 0)
+    return;
+  Node root = nodeManager_.load(rootId_);
+  root.print(os, 0, nodeManager_);
 }
 
 template <Comparable TKey, typename TVal>

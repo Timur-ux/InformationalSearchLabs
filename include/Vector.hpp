@@ -315,7 +315,7 @@ Vector<T>::iterator Vector<T>::insert(iterator it, const T &value) {
 	++size_;
 	auto current = end() - 1;
 	while(current != it)
-		*current = *(current - 1);
+		*current = *(current - 1), --current;
 
 	*current = value;
 	size_t i = current - begin();
