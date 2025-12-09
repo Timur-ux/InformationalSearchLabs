@@ -27,14 +27,4 @@ concept ConvertibleFromIterator = requires (TIt iter) {
 template <typename Base, typename Derived>
 concept base_of = std::derived_from<Derived, Base>;
 
-namespace IR::serde {
-	template <typename T>
-	struct Serializer {
-		static constexpr bool initialized = false;
-	};
-};
-
-template <typename T>
-concept Serializable = IR::serde::Serializer<T>::initialized;
-
 #endif // !CONCEPTS_HPP_

@@ -6,6 +6,5 @@
 namespace IR::serde {
 
 
-
 } // namespace IR::serde
 #endif // !SERIALIZERS_HPP_

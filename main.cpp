@@ -2,9 +2,10 @@
 #include <cstring>
 #include <ios>
 #include <iostream>
+#include <memory>
 
 int main(int argc, const char *argw[]) {
-  IR::BPlusTree<int, int> storage(20);
+	IR::bplustree::BPlusTree<int, int> storage(std::make_unique<IR::bplustree::InMemoryNodeManager<int, int>>(), 20);
 
   for (size_t i = 0; i < 50; ++i) {
     storage.insert(i, i / 2);
