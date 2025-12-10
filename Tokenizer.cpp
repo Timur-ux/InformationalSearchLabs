@@ -5,7 +5,7 @@
 #include "tokenizer.hpp"
 #include "Trie.hpp"
 
-int main(int argc, const char * argw[]) {
+int main() {
 	setlocale(LC_ALL, "");
 	std::basic_regex<wchar_t> pattern(patternText, std::regex_constants::ECMAScript | std::regex_constants::multiline);
 	IR::Trie<wchar_t, size_t> tokens;

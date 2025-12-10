@@ -5,18 +5,24 @@
 #include "algo.hpp"
 #include "concepts.hpp"
 #include <cassert>
+#include <cstdio>
+#include <cstdlib>
 #include <functional>
 #include <ios>
+#include <iostream>
 #include <iterator>
 #include <memory>
 #include <random>
 #include <stdexcept>
 #include <utility>
+#include <filesystem>
 #pragma once
 
 namespace IR {
 
 namespace bplustree {
+
+namespace fs = std::filesystem;
 enum class SameKeyOrdering { Random, Increase, AsInserted };
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 class INodeManager;
@@ -180,11 +186,41 @@ public:
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 class FileBasedNodeManager : public INodeManager<TKey, TVal, TOrdering> {
   using Node = INodeManager<TKey, TVal, TOrdering>::Node;
-  std::string storagePath_;
+  std::string name_;
+	fs::path storagePath_;
   long nextFreeId_ = 0;
 
+	constexpr static const char * schemaName = "schema";
+
 public:
-  FileBasedNodeManager() { throw std::logic_error("Not realized yet"); }
+	struct Schema {
+		long nextFreeId;
+		long rootId;
+	};
+  FileBasedNodeManager(const std::string & storageName)
+		: name_(storageName) { 
+			const char * storagePath = getenv("DATABASE_STORAGE_PATH");
+			if(!storagePath) 
+				throw std::invalid_argument("Environment variable [DATABASE_STORAGE_PATH] not setted, i don't know where store files");
+			
+			storagePath_ = storagePath;
+			storagePath_ /= name_;
+
+
+			if(fs::create_directories(storagePath_))
+				std::cerr << "Storage for [" << name_ << "] created at: " << storagePath_ << '\n'; 
+			else
+				std::cerr << "Storage for [" << name_ << "] already created at: " << storagePath_ << '\n'; 
+
+			fs::path schemaPath = storagePath_ / schemaName;
+
+			if(fs::exists(schemaPath)) {
+				std::cerr << "Found schema file for [" << name_ << "] storage. Node manager data will be loaded from it\n";
+				FILE *file = fopen(schemaPath.c_str(), "rb");
+			}
+				
+
+		}
   Node load(long id) override;
   Node load(long id, long parentId) override;
   void save(const Node &node) override;
@@ -241,12 +277,12 @@ public:
     const_iterator end() const { return vals_.end(); }
   };
 
-  BPlusTree(std::unique_ptr<NodeManager_type> &&nodeManager)
-      : nodeManager_(std::move(nodeManager)) {}
+  BPlusTree(std::unique_ptr<NodeManager_type> &&nodeManager, size_t rootId = 0)
+      : nodeManager_(std::move(nodeManager)), rootId_(rootId) {}
 
-  BPlusTree(std::unique_ptr<NodeManager_type> &&nodeManager,
-            size_t nodeCapacity)
-      : BPlusTree(std::move(nodeManager)) {
+  BPlusTree(std::unique_ptr<NodeManager_type> &&nodeManager, size_t rootId = 0,
+            size_t nodeCapacity = 8192)
+      : BPlusTree(std::move(nodeManager), rootId) {
     nodeCapacity_ = nodeCapacity;
     if ((nodeCapacity_ & 1) || nodeCapacity_ <= 2)
       throw std::invalid_argument("Only even node capacity higher 2 allowed");
@@ -493,18 +529,18 @@ long BPlusTree<TKey, TVal, TOrdering>::split(Node &node) {
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 void impl::Node<TKey, TVal, TOrdering>::print(std::ostream &os, int depth,
                                    INodeManager &manager) {
-  for (size_t _ = 0; _ < depth; ++_)
+  for (int _ = 0; _ < depth; ++_)
     os << " | ";
   os << "id = " << id << std::boolalpha << "; isLeaf = " << isLeaf
      << "; level = " << level << "; nextNodeId = " << nextNodeId
      << "; parent id = " << parentId << '\n';
-  for (size_t _ = 0; _ < depth; ++_)
+  for (int _ = 0; _ < depth; ++_)
     os << " | ";
   os << "keys = ";
   for (const auto &key : keys)
     os << key.first << ' ';
   os << '\n';
-  for (size_t _ = 0; _ < depth; ++_)
+  for (int _ = 0; _ < depth; ++_)
     os << " | ";
   if (isLeaf) {
     os << "values = ";

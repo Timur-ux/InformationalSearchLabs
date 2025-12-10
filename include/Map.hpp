@@ -372,6 +372,8 @@ void Map<TKey, TVal>::balanceLeft(Node *node) {
   case R:
     left->balance = L;
     break;
+	default:
+		break;
   }
 
   leftRight->balance = Balanced;
@@ -401,6 +403,8 @@ void Map<TKey, TVal>::balanceRight(Node *node) {
   case R:
     node->balance = L;
     break;
+	default:
+		break;
   }
 
   rightLeft->balance = Balanced;

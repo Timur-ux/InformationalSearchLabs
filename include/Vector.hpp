@@ -1,5 +1,6 @@
 #ifndef VECTOR_HPP_
 #define VECTOR_HPP_
+#include "concepts.hpp"
 #include <cassert>
 #include <cstddef>
 #include <cstdlib>
@@ -38,8 +39,8 @@ public:
 
   Vector<T> &reserve(size_t n);
 
-  Vector<T> &push_back(const T &value);
-  Vector<T> &push_back(T &&value);
+	template <SameAs<T> U>
+  Vector<T> &push_back(U &&value);
   Vector<T> &pop_back();
 
   T &operator[](size_t i);
@@ -156,8 +157,6 @@ template <typename T> Vector<T>::Vector() { data_ = new T[capacity_]; }
 
 template <typename T> Vector<T>::Vector(size_t n) : size_(n), capacity_(2 * n) {
   data_ = new T[capacity_];
-  for (size_t i = 0; i < size_; ++i)
-    data_[i] = T();
 }
 
 template <typename T>
@@ -262,15 +261,12 @@ void Vector<T>::realloc(size_t newCapacity) {
 	delete [] old;
 }
 
-template <typename T> Vector<T> &Vector<T>::push_back(const T &value) {
-  data_[size_++] = value;
-  if (size_ >= capacity_)
-    realloc(capacity_ * 2);
-  return *this;
-}
 
-template <typename T> Vector<T> &Vector<T>::push_back(T &&value) {
-  data_[size_++] = std::move(value);
+
+template <typename T>
+template <SameAs<T> U>
+Vector<T> &Vector<T>::push_back(U &&value) {
+  data_[size_++] = std::forward<U>(value);
   if (size_ >= capacity_)
     realloc(capacity_ * 2);
   return *this;
