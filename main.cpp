@@ -4,12 +4,17 @@
 #include <iostream>
 #include <memory>
 
-int main(int argc, const char *argw[]) {
-	IR::bplustree::BPlusTree<int, int> storage(std::make_unique<IR::bplustree::InMemoryNodeManager<int, int>>(), 20);
+namespace bpt = IR::bplustree;
 
-  for (size_t i = 0; i < 50; ++i) {
-    storage.insert(i, i / 2);
-  }
+int main(int argc, const char *argw[]) {
+  IR::bplustree::BPlusTree<int, int, bpt::SameKeyOrdering::Increase> storage(
+      std::make_unique<
+          bpt::InMemoryNodeManager<int, int, bpt::SameKeyOrdering::Increase>>(),
+      10);
+
+  for (int i = 0; i < 50; ++i) 
+    storage.insert(0, 25 - i);
+  
 
   storage.print(std::cout);
 
