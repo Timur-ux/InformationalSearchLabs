@@ -4,6 +4,7 @@
 #include "Vector.hpp"
 #include "algo.hpp"
 #include "concepts.hpp"
+#include "event.hpp"
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
@@ -153,79 +154,12 @@ public:
    * @param id -- node to load id
    * @param currentNodeId -- id that will be set as parent id
    *
-   * @return
+   * @return loaded node
    */
   virtual Node load(long id, long parentId) = 0;
   virtual void save(const Node &node) = 0;
   virtual Node create(bool isLeaf, long parentId, size_t level,
                       long nextNodeId = -1) = 0;
-};
-
-/**
- * @brief Stores nodes in RAM memory
- */
-template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
-class InMemoryNodeManager : public INodeManager<TKey, TVal, TOrdering> {
-  using Node = INodeManager<TKey, TVal, TOrdering>::Node;
-  Vector<Node> storage_;
-  Bimap<long, size_t> index_;
-  long nextFreeId_ = 0;
-
-public:
-  Node load(long id) override;
-
-  Node load(long id, long parentId) override;
-  void save(const Node &node) override;
-  Node create(bool isLeaf, long parentId, size_t level,
-              long nextNodeId = -1) override;
-};
-
-/**
- * @brief Stores nodes on the files
- */
-template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
-class FileBasedNodeManager : public INodeManager<TKey, TVal, TOrdering> {
-  using Node = INodeManager<TKey, TVal, TOrdering>::Node;
-  std::string name_;
-	fs::path storagePath_;
-  long nextFreeId_ = 0;
-
-	constexpr static const char * schemaName = "schema";
-
-public:
-	struct Schema {
-		long nextFreeId;
-		long rootId;
-	};
-  FileBasedNodeManager(const std::string & storageName)
-		: name_(storageName) { 
-			const char * storagePath = getenv("DATABASE_STORAGE_PATH");
-			if(!storagePath) 
-				throw std::invalid_argument("Environment variable [DATABASE_STORAGE_PATH] not setted, i don't know where store files");
-			
-			storagePath_ = storagePath;
-			storagePath_ /= name_;
-
-
-			if(fs::create_directories(storagePath_))
-				std::cerr << "Storage for [" << name_ << "] created at: " << storagePath_ << '\n'; 
-			else
-				std::cerr << "Storage for [" << name_ << "] already created at: " << storagePath_ << '\n'; 
-
-			fs::path schemaPath = storagePath_ / schemaName;
-
-			if(fs::exists(schemaPath)) {
-				std::cerr << "Found schema file for [" << name_ << "] storage. Node manager data will be loaded from it\n";
-				FILE *file = fopen(schemaPath.c_str(), "rb");
-			}
-				
-
-		}
-  Node load(long id) override;
-  Node load(long id, long parentId) override;
-  void save(const Node &node) override;
-  Node create(bool isLeaf, long parentId, size_t level,
-              long nextNodeId = -1) override;
 };
 
 /**
@@ -253,11 +187,14 @@ class BPlusTree {
 
   // Tree level -- 0 is leaf and root have maximum level
   size_t level_ = 0, nodeCapacity_ = 8192, size_ = 0;
-  std::unique_ptr<NodeManager_type> nodeManager_;
+  std::shared_ptr<NodeManager_type> nodeManager_;
   long rootId_ = -1;
   KeyFactory_type keyFactory_;
 
+	// Dispatch rootId between handlers when destroying
+	event::Event<long> onDestroy_;
 public:
+	event::IEvent<long> & onDestroy;
   class Cursor {
     friend BPlusTree;
     using values_type = Vector<std::pair<TKey, TVal>>;
@@ -277,16 +214,20 @@ public:
     const_iterator end() const { return vals_.end(); }
   };
 
-  BPlusTree(std::unique_ptr<NodeManager_type> &&nodeManager, size_t rootId = 0)
-      : nodeManager_(std::move(nodeManager)), rootId_(rootId) {}
+  BPlusTree(std::shared_ptr<NodeManager_type> nodeManager, long rootId = -1)
+      : onDestroy(onDestroy_), nodeManager_(std::move(nodeManager)), rootId_(rootId) {}
 
-  BPlusTree(std::unique_ptr<NodeManager_type> &&nodeManager, size_t rootId = 0,
+  BPlusTree(std::shared_ptr<NodeManager_type> nodeManager, long rootId = -1,
             size_t nodeCapacity = 8192)
       : BPlusTree(std::move(nodeManager), rootId) {
     nodeCapacity_ = nodeCapacity;
     if ((nodeCapacity_ & 1) || nodeCapacity_ <= 2)
       throw std::invalid_argument("Only even node capacity higher 2 allowed");
   }
+
+	~BPlusTree() {
+		onDestroy_.invoke(std::forward<long>(rootId_));
+	}
 
 	template <SameAs<TKey> UKey>
   Cursor find(UKey &&key);
@@ -321,6 +262,88 @@ public:
 
   size_t size() const { return size_; }
 };
+
+/**
+ * @brief Stores nodes in RAM memory
+ */
+template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
+class InMemoryNodeManager : public INodeManager<TKey, TVal, TOrdering> {
+  using Node = INodeManager<TKey, TVal, TOrdering>::Node;
+  Vector<Node> storage_;
+  Bimap<long, size_t> index_;
+  long nextFreeId_ = 0;
+
+public:
+  Node load(long id) override;
+
+  Node load(long id, long parentId) override;
+  void save(const Node &node) override;
+  Node create(bool isLeaf, long parentId, size_t level,
+              long nextNodeId = -1) override;
+};
+
+/**
+ * @brief Stores nodes on the files
+ */
+template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
+class FileBasedNodeManager : public INodeManager<TKey, TVal, TOrdering> {
+public:
+struct Schema {
+	long nextFreeId = 0;
+	long rootId = 0;
+};
+private:
+  using Node = INodeManager<TKey, TVal, TOrdering>::Node;
+	fs::path storagePath_;
+	Schema schema_;
+
+	struct SchemaUpdater : public event::IEventHandler<long> {
+		Schema &schema;
+		void operator()(long rootId) {
+			schema.rootId = rootId;
+		}
+	};
+	
+	std::shared_ptr<SchemaUpdater> schemaUpdater_;
+	std::weak_ptr<BPlusTree<TKey, TVal, TOrdering>> tree_;
+public:
+  FileBasedNodeManager(const fs::path & storagePath)
+		: storagePath_(storagePath), schemaUpdater_(std::shared_ptr(new SchemaUpdater{.schema = schema_})) {}
+
+  FileBasedNodeManager(const fs::path & storagePath, Schema loadedSchema)
+		: FileBasedNodeManager(storagePath) {
+			schema_ = loadedSchema;
+		}
+
+	constexpr static const char * schemaName = "schema";
+
+  Node load(long id) override;
+  Node load(long id, long parentId) override;
+  void save(const Node &node) override;
+  Node create(bool isLeaf, long parentId, size_t level,
+              long nextNodeId = -1) override;
+	
+	void bindTo(std::shared_ptr<BPlusTree<TKey, TVal, TOrdering>> tree) {
+		tree_ = tree;
+		tree->onDestroy += schemaUpdater_;
+	}
+
+	~FileBasedNodeManager() {
+		if(auto treePtr = tree_.lock()) 
+			treePtr->onDestroy -= schemaUpdater_;
+
+		fs::path schemaPath = storagePath_ / schemaName;
+		FILE * file = fopen(schemaPath.c_str(), "wb");
+		if(fwrite(&schema_, sizeof(Schema), 1, file) != 1) 
+			throw std::runtime_error("Can't save current schema to schema file");
+		fclose(file);
+	}
+};
+
+// -----------------------------------------
+// |  Out-line classes method definitions  |
+// -----------------------------------------
+
 
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 template <SameAs<TKey> UKey, SameAs<TVal> UVal>

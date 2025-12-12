@@ -7,7 +7,10 @@
 #include <cstring>
 #include <iostream>
 #include <iterator>
+#include <ranges>
 #include <stdexcept>
+#include <type_traits>
+#include <utility>
 #pragma once
 
 namespace IR {
@@ -17,7 +20,7 @@ protected:
   size_t size_ = 0;
   size_t capacity_ = 1;
 
-  void realloc(size_t newCapacity);
+  void realloc_(size_t newCapacity);
 
 public:
   Vector();
@@ -39,8 +42,8 @@ public:
 
   Vector<T> &reserve(size_t n);
 
-	template <SameAs<T> U>
-  Vector<T> &push_back(U &&value);
+  template <SameAs<T> U> Vector<T> &push_back(U &&value);
+  template <typename... Args> Vector<T> &emplace_back(Args &&...args);
   Vector<T> &pop_back();
 
   T &operator[](size_t i);
@@ -68,7 +71,8 @@ public:
    *
    * @return iterator on newly inserted value
    */
-  iterator insert(iterator it, const T &value);
+  template <SameAs<T> U> iterator insert(iterator it, U &&value);
+  template <typename... Args> iterator emplace(iterator it, Args &&...args);
 
   /**
    * @brief Insert value before given index
@@ -78,7 +82,9 @@ public:
    *
    * @return iterator on newly inserted value
    */
-  iterator insert(size_t index, const T &value);
+  template <SameAs<T> U> iterator insert(size_t index, U &&value);
+
+  template <typename... Args> iterator emplace(size_t index, Args &&...args);
 
   template <typename TData> class VectorIterator {
   public:
@@ -153,25 +159,29 @@ public:
 // |  CONSTRUCTORS  |
 // ------------------
 
-template <typename T> Vector<T>::Vector() { data_ = new T[capacity_]; }
+template <typename T> Vector<T>::Vector() {
+  data_ = reinterpret_cast<T *>(malloc(capacity_ * sizeof(T)));
+}
 
 template <typename T> Vector<T>::Vector(size_t n) : size_(n), capacity_(2 * n) {
-  data_ = new T[capacity_];
+  data_ = reinterpret_cast<T *>(malloc(capacity_ * sizeof(T)));
+  for (size_t i = 0; i < size_; ++i)
+    new (data_ + i) T();
 }
 
 template <typename T>
 Vector<T>::Vector(size_t n, const T &value) : size_(n), capacity_(2 * n) {
-  data_ = new T[capacity_];
+  data_ = reinterpret_cast<T *>(malloc(capacity_ * sizeof(T)));
   for (size_t i = 0; i < size_; ++i)
-    data_[i] = value;
+    new (data_ + i) T(value);
 }
 
 template <typename T>
 Vector<T>::Vector(const Vector<T> &other)
     : size_(other.size_), capacity_(other.capacity_) {
-  data_ = new T[capacity_];
+  data_ = reinterpret_cast<T *>(malloc(capacity_ * sizeof(T)));
   for (size_t i = 0; i < size_; ++i)
-    data_[i] = other[i];
+    new (data_ + i) T(other[i]);
 }
 
 template <typename T>
@@ -184,15 +194,19 @@ Vector<T>::Vector(Vector<T> &&other) noexcept
 
 template <typename T> Vector<T> &Vector<T>::operator=(const Vector<T> &other) {
   if (other.capacity_ > capacity_) {
-    T *old = data_;
-    data_ = new T[other.capacity_];
-    delete[] old;
+    data_ = reinterpret_cast<T *>(realloc_(data_, other.capacity_ * sizeof(T)));
   }
+
+  size_t minSize = std::min(size_, other.size_);
+  for (size_t i = 0; i < minSize; ++i)
+    data_[i] = other[i];
+  for (size_t i = minSize; i < size_; ++i)
+    data_[i].~T();
+  for (size_t i = minSize; i < other.size_; ++i)
+    new (data_ + i) T(other[i]);
 
   capacity_ = other.capacity_;
   size_ = other.size_;
-  for (size_t i = 0; i < size_; ++i)
-    data_[i] = other[i];
 
   return *this;
 }
@@ -203,7 +217,8 @@ Vector<T> &Vector<T>::operator=(Vector<T> &&other) noexcept {
     return *this;
 
   if (data_)
-    delete[] data_;
+    for (size_t i = 0; i < size_; ++i)
+      data_[i].~T();
   data_ = other.data_;
   size_ = other.size_;
   capacity_ = other.capacity_;
@@ -216,10 +231,10 @@ Vector<T> &Vector<T>::operator=(Vector<T> &&other) noexcept {
 }
 
 template <typename T>
-Vector<T>::Vector(T *data, size_t len) : size_(len), capacity_(len) {
-  data_ = new T[capacity_];
+Vector<T>::Vector(T *data, size_t len) : size_(len), capacity_(len + 1) {
+  data_ = reinterpret_cast<T *>(malloc(capacity_ * sizeof(T)));
   for (size_t i = 0; i < len; ++i)
-    data_[i] = data[i];
+    new (data_ + i) T(data[i]);
 }
 
 // -----------------
@@ -227,8 +242,11 @@ Vector<T>::Vector(T *data, size_t len) : size_(len), capacity_(len) {
 // -----------------
 
 template <typename T> Vector<T>::~Vector() {
-  if (data_)
-    delete[] data_;
+  if (data_) {
+    for (size_t i = 0; i < size_; ++i)
+      data_[i].~T();
+    free(data_);
+  }
 }
 
 template <typename T> Vector<T>::iterator Vector<T>::begin() {
@@ -247,35 +265,40 @@ template <typename T> Vector<T>::const_iterator Vector<T>::end() const {
   return iterator(data_ + size_);
 }
 
-template <typename T>
-void Vector<T>::realloc(size_t newCapacity) {
-	if(newCapacity <= capacity_) 
-		return;
+template <typename T> void Vector<T>::realloc_(size_t newCapacity) {
+  if (newCapacity <= capacity_)
+    return;
 
-	
-	capacity_ = newCapacity;
-	T* old = data_;
-	data_ = new T[capacity_];
+  capacity_ = newCapacity;
+	T *old = data_;
+	data_ = reinterpret_cast<T*>(malloc(capacity_ * sizeof(T)));
 	for(size_t i = 0; i < size_; ++i) 
-		data_[i] = std::move(old[i]);
-	delete [] old;
+		new (data_ + i) T(std::move(old[i]));
+	free(old);
+	return;
 }
-
-
 
 template <typename T>
 template <SameAs<T> U>
 Vector<T> &Vector<T>::push_back(U &&value) {
-  data_[size_++] = std::forward<U>(value);
-  if (size_ >= capacity_)
-    realloc(capacity_ * 2);
+  new (data_ + (size_++)) T(std::forward<U>(value));
+  while (size_ >= capacity_)
+    realloc_(capacity_ * 2);
+  return *this;
+}
+template <typename T>
+template <typename... Args>
+Vector<T> &Vector<T>::emplace_back(Args &&...args) {
+  new (data_ + (size_++)) T(std::forward<Args>(args)...);
+  while (size_ >= capacity_)
+    realloc_(capacity_ * 2);
   return *this;
 }
 
 template <typename T> Vector<T> &Vector<T>::pop_back() {
   if (size_ > 0)
-    --size_;
-	return *this;
+    --size_, data_[size_].~T();
+  return *this;
 }
 
 template <typename T> size_t Vector<T>::size() const { return size_; }
@@ -307,18 +330,61 @@ template <typename T> const T *Vector<T>::data() const { return data_; }
 template <typename T> T *Vector<T>::data() { return data_; }
 
 template <typename T>
-Vector<T>::iterator Vector<T>::insert(iterator it, const T &value) {
-	++size_;
-	auto current = end() - 1;
-	while(current != it)
-		*current = *(current - 1), --current;
+template <SameAs<T> U>
+Vector<T>::iterator Vector<T>::insert(size_t index, U &&value) {
+  return insert(begin() + index, std::forward<U>(value));
+}
 
-	*current = value;
-	size_t i = current - begin();
+template <typename T>
+template <SameAs<T> U>
+Vector<T>::iterator Vector<T>::insert(iterator it, U &&value) {
+  if (it == end())
+    return push_back(std::forward<U>(value)), --end();
+
+  auto current = end() - 1;
+  new (data_ + (size_++)) T(*current);
+  while (current != it)
+    *current = *(current - 1), --current;
+
+  *current = std::forward<U>(value);
+  size_t i = current - begin();
   if (size_ >= capacity_)
-    realloc(capacity_ * 2);
+    realloc_(capacity_ * 2);
 
-	return begin() + i;
+  return begin() + i;
+}
+
+template <typename T>
+template <typename... Args>
+Vector<T>::iterator Vector<T>::emplace(size_t index, Args &&...args) {
+  return emplace(begin() + index, std::forward<Args>(args)...);
+}
+
+template <typename T>
+template <typename... Args>
+Vector<T>::iterator Vector<T>::emplace(iterator it, Args &&...args) {
+  static_assert(std::is_constructible_v<T, Args...>);
+  if (it == end())
+    return emplace_back(std::forward<Args>(args)...), --end();
+
+  auto current = end() - 1;
+  new (data_ + (size_++)) T(*current);
+  while (current != it)
+    *current = *(current - 1), --current;
+
+  *current = T(std::forward<Args>(args)...);
+  size_t i = current - begin();
+  if (size_ >= capacity_)
+    realloc_(capacity_ * 2);
+
+  return begin() + i;
+}
+template <typename T> Vector<T> &Vector<T>::reserve(size_t n) {
+  if (n < capacity_)
+    return *this;
+
+  realloc_(n);
+  return *this;
 }
 
 template <typename T> class VectorView {
@@ -400,20 +466,6 @@ template <typename T> VectorView<T>::const_iterator VectorView<T>::end() const {
 template <typename T> size_t VectorView<T>::size() const { return size_; }
 
 template <typename T> const T *VectorView<T>::data() const { return data_; }
-
-template <typename T> Vector<T> &Vector<T>::reserve(size_t n) {
-  if (n < capacity_)
-    return *this;
-
-  capacity_ = n;
-  T *old = data_;
-  data_ = new T[capacity_];
-  for (size_t i = 0; i < size_; ++i)
-    data_[i] = std::move(old[i]);
-
-  delete[] old;
-  return *this;
-}
 
 } // namespace IR
 #endif // !VECTOR_HPP_

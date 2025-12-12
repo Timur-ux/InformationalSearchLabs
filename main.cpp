@@ -3,6 +3,7 @@
 #include <cstring>
 #include <ios>
 #include <iostream>
+#include <semaphore>
 
 struct People {
 	std::string name;
@@ -42,18 +43,29 @@ struct People {
 };
 
 int main() {
-	// std::vector<People> v;
-	IR::Vector<int> v;
+	std::vector<People> v;
+	// IR::Vector<People> v;
 
-	// People p[4] = {{"Edvard", 32}, {"Joe", 18}, {"Finn", 25}, {"Sam", 34}};
-	// std::cout << "============"<< '\n';
-	// v.push_back(p[0]);
-	// std::cout << "============"<< '\n';
-	// v.push_back(std::move(p[1]));
-	// std::cout << "============"<< '\n';
-	//
-	// v[0] = p[2];
-	// std::cout << "============"<< '\n';
-	// v[1] = std::move(p[3]);
-	// std::cout << "============"<< '\n';
+	People p[4] = {{"Edvard", 32}, {"Joe", 18}, {"Finn", 25}, {"Sam", 34}};
+	std::cout << "============"<< '\n';
+	v.push_back(p[0]);
+	std::cout << "============"<< '\n';
+	v.push_back(std::move(p[1]));
+	std::cout << "============"<< '\n';
+
+	for(size_t i = 0; i < 2; ++i) 
+		std::cout << v[i].name << ' ' << v[i].age << '\n';
+
+	v[0] = p[2];
+	std::cout << "============"<< '\n';
+	v[1] = std::move(p[3]);
+	std::cout << "============"<< '\n';
+	for(size_t i = 0; i < 2; ++i) 
+		std::cout << v[i].name << ' ' << v[i].age << '\n';
+	std::cout << "============"<< '\n';
+
+	v.emplace_back("Flora", 37);
+	v.emplace(v.begin(), "Bagin", 24);
+	for(size_t i = 0; i < 4; ++i) 
+		std::cout << v[i].name << ' ' << v[i].age << '\n';
 }
