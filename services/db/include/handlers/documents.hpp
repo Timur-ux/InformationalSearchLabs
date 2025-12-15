@@ -1,0 +1,5 @@
+#ifndef DOCUMENTS_HANDLER_HPP_
+#define DOCUMENTS_HANDLER_HPP_
+#pragma once
+
+#endif // !DOCUMENTS_HANDLER_HPP_

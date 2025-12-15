@@ -8,11 +8,8 @@ project(
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(mongocxx REQUIRED)
-message("MONGO DIRS: ${mongocxx_INCLUDE_DIRS}")
-
 # setup userver
-find_package(userver COMPONENTS core mongo REQUIRED)
+find_package(userver COMPONENTS core mongo chaotic REQUIRED)
 if(NOT userver_FOUND)
 	message(STATUS "Global userver installation not found. Trying to fetch userver from ${CMAKE_CURRENT_SOURCE_DIR}/third_party/userver directory")
 	if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/userver)
@@ -40,6 +37,8 @@ FetchContent_MakeAvailable(googletest)
 
 file(GLOB_RECURSE ${CMAKE_PROJECT_NAME}_src LIST_DIRECTORIES FALSE ./src/*.cpp)
 file(GLOB_RECURSE ${CMAKE_PROJECT_NAME}_tests_src LIST_DIRECTORIES FALSE ./tests/*.cpp)
+
+add_compile_options(-Wno-reorder -Wno-unused-value -Wno-unused-parameter)
 if(CMAKE_BUILD_TYPE STREQUAL "DEBUG")
 	message("DEBUG ENABLED")
 	add_compile_options(-O0)
@@ -61,10 +60,15 @@ target_link_libraries(tests PRIVATE ${CMAKE_PROJECT_NAME}_lib GTest::gtest_main)
 
 if(${CMAKE_BUILD_TYPE} EQUAL Release)
 	add_executable(indexer ./Indexer.cpp)
-	target_link_libraries(indexer PRIVATE ${CMAKE_PROJECT_NAME}_lib mongo::mongocxx_static)
+	target_link_libraries(indexer PRIVATE ${CMAKE_PROJECT_NAME}_lib userver::mongo)
 else()
 	message(STATUS "Mongocxx library not configured under not Release build so i skip indexer that needs it")
 endif()
 
 include(GoogleTest)
 gtest_discover_tests(tests)
+
+# ------------------
+# |  add services  |
+# ------------------
+add_subdirectory("./services/db/")

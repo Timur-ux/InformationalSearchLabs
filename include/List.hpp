@@ -24,6 +24,8 @@ public:
   List &operator=(const List &other);
   List &operator=(List &&other) noexcept;
 
+	~List();
+
   template <SameAs<T> U> List &push_back(U &&value);
   template <typename... Args> List &emplace_back(Args &&...args);
 
@@ -97,14 +99,14 @@ public:
 
     ListIterator<TVal> operator+(difference_type diff) const {
       ListIterator<TVal> res(ptr_);
-      for (size_t i = 0; i < diff; ++i)
+      for (difference_type i = 0; i < diff; ++i)
         ++res;
       return res;
     }
 
     ListIterator<TVal> operator-(difference_type diff) const {
       ListIterator<TVal> res(ptr_);
-      for (size_t i = 0; i < diff; ++i)
+      for (difference_type i = 0; i < diff; ++i)
         --res;
       return res;
     }
@@ -118,6 +120,7 @@ public:
     }
   };
 };
+
 template <typename T> List<T>::List() {
   end_ = reinterpret_cast<Node*>(malloc(sizeof(TermNode)));
   end_->next = (Node *)(end_->prev = (Node *)end_);
@@ -260,6 +263,10 @@ template <typename T> void List<T>::destroyAllNodes(bool destroyTerminator) {
 
   if (destroyTerminator)
     free(end_), end_ = nullptr, size_ = 0;
+}
+
+template <typename T> List<T>::~List() {
+	destroyAllNodes(true);
 }
 
 } // namespace IR

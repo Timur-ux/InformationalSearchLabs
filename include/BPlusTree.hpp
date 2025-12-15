@@ -13,7 +13,9 @@
 #include <iostream>
 #include <iterator>
 #include <memory>
+#include <mutex>
 #include <random>
+#include <shared_mutex>
 #include <stdexcept>
 #include <utility>
 #pragma once
@@ -160,7 +162,7 @@ public:
 
   ~BPlusTree() { onDestroy_.invoke(std::forward<long>(rootId_)); }
 
-  template <SameAs<TKey> UKey> Cursor find(UKey &&key);
+  template <SameAs<TKey> UKey> Cursor find(UKey &&key) const;
 
   /**
    * @brief Find values with key in [lower, higher] range
@@ -170,7 +172,7 @@ public:
    *
    * @return Cursor with founded values
    */
-  template <SameAs<TKey> UKey> Cursor find(UKey &&lower, UKey &&higher);
+  template <SameAs<TKey> UKey> Cursor find(UKey &&lower, UKey &&higher) const;
 
   template <SameAs<TKey> UKey, SameAs<TVal> UVal>
   void insert(UKey &&key, UVal &&value);
@@ -240,6 +242,8 @@ private:
   Schema schema_;
   std::shared_ptr<SchemaUpdater> schemaUpdater_;
 
+  std::shared_mutex mutex_;
+
 public:
   FileBasedNodeManager(const fs::path &storagePath)
       : storagePath_(storagePath),
@@ -295,11 +299,10 @@ void BPlusTree<TKey, TVal, TOrdering>::insert(UKey &&key_, UVal &&value) {
   auto itVal = std::begin(node.values) + (itKey - std::begin(node.keys));
   node.keys.insert(itKey, key);
   node.values.insert(itVal, value);
-	while(node.n() >= nodeCapacity_) {
-		long parentId = split(node);
-		node = nodeManager_->load(parentId);
-	}
-		
+  while (node.n() >= nodeCapacity_) {
+    long parentId = split(node);
+    node = nodeManager_->load(parentId);
+  }
 
   nodeManager_->save(node);
 }
@@ -307,17 +310,17 @@ void BPlusTree<TKey, TVal, TOrdering>::insert(UKey &&key_, UVal &&value) {
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 template <SameAs<TKey> UKey>
 BPlusTree<TKey, TVal, TOrdering>::Cursor
-BPlusTree<TKey, TVal, TOrdering>::find(UKey &&key) {
+BPlusTree<TKey, TVal, TOrdering>::find(UKey &&key) const {
   return find(key, key);
 }
 
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 template <SameAs<TKey> UKey>
 BPlusTree<TKey, TVal, TOrdering>::Cursor
-BPlusTree<TKey, TVal, TOrdering>::find(UKey &&lower_, UKey &&higher_) {
+BPlusTree<TKey, TVal, TOrdering>::find(UKey &&lower_, UKey &&higher_) const {
   typename Cursor::values_type result;
-  key_type lower = keyFactory_(std::forward<UKey>(lower_), TVal()),
-           higher = keyFactory_(std::forward<UKey>(higher_), TVal());
+  key_type lower, higher;
+  lower.first = lower_, higher.first = higher_;
   std::function<bool(const key_type &, const key_type &)> cmp =
       [](const key_type &k1, const key_type &k2) -> bool {
     return k1.first < k2.first;
@@ -375,7 +378,7 @@ InMemoryNodeManager<TKey, TVal, TOrdering>::load(long nodeId, long parentId) {
   size_t index = index_[nodeId];
   Node node = storage_[index];
   node.parentId = parentId;
-	save(node);
+  save(node);
   return node;
 }
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
@@ -413,10 +416,11 @@ long BPlusTree<TKey, TVal, TOrdering>::split(Node &node) {
 
   Node right = nodeManager_->create(node.isLeaf, parent.id, node.level);
   Node &left = node;
-  assert(("Only nodes with level 0 may be marked as leaves",
-          !left.isLeaf && left.level > 0 || left.isLeaf && left.level == 0));
+  assert(
+      ("Only nodes with level 0 may be marked as leaves",
+       (!left.isLeaf && left.level > 0) || (left.isLeaf && left.level == 0)));
   assert(("At same level must be only leaves or only non leaves",
-          left.level == right.level && left.isLeaf == right.isLeaf));
+          (left.level == right.level) && (left.isLeaf == right.isLeaf)));
   assert(("Parent level must be higher by 1 than left and right childs level",
           parent.level == left.level + 1));
 
@@ -606,8 +610,8 @@ FileBasedNodeManager<TKey, TVal, TOrdering>::~FileBasedNodeManager() {
   else if (fwrite(&schema_, sizeof(Schema), 1, file) != 1)
     std::cerr << "Can't write schema data to file\n";
 
-	if(file) 
-		fclose(file);
+  if (file)
+    fclose(file);
 }
 
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
@@ -618,6 +622,9 @@ FileBasedNodeManager<TKey, TVal, TOrdering>::create(bool isLeaf, long parentId,
   return Node{.id = schema_.nextFreeId++,
               .level = level,
               .isLeaf = isLeaf,
+              .keys = {},
+              .links = {},
+              .values = {},
               .nextNodeId = nextNodeId,
               .parentId = parentId};
 }
@@ -626,14 +633,16 @@ template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 impl::Node<TKey, TVal, TOrdering>
 FileBasedNodeManager<TKey, TVal, TOrdering>::load(long id, long parentId) {
   Node node = load(id);
-  node.parentId = parentId;
-	save(node);
+  if (node.parentId != parentId)
+    node.parentId = parentId, save(node);
+
   return node;
 }
 
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 impl::Node<TKey, TVal, TOrdering>
 FileBasedNodeManager<TKey, TVal, TOrdering>::load(long id) {
+  std::shared_lock lock(mutex_);
   fs::path nodePath = storagePath_ / algo::lltostring(id);
   if (!fs::exists(nodePath))
     throw std::invalid_argument("Node with requested id doesn't exist");
@@ -649,18 +658,16 @@ FileBasedNodeManager<TKey, TVal, TOrdering>::load(long id) {
       nodeSchema.nKeys * sizeof(typename Node::key_type),
       std::max(nodeSchema.nLinks * sizeof(typename Node::link_type),
                nodeSchema.nValues * sizeof(typename Node::value_type))));
-  Node node{.id = nodeSchema.id,
-            .level = nodeSchema.level,
-            .isLeaf = nodeSchema.isLeaf,
-            .nextNodeId = nodeSchema.nextNodeId,
-            .parentId = nodeSchema.parentId};
 
+  Vector<typename Node::key_type> keys;
+  Vector<typename Node::link_type> links;
+  Vector<typename Node::value_type> values;
   if (nodeSchema.nKeys > 0) {
     if (fread(buffer, sizeof(typename Node::key_type), nodeSchema.nKeys,
               file) != nodeSchema.nKeys)
       throw std::runtime_error("Can't read node keys to file");
     else
-      node.keys = Vector<typename Node::key_type>(
+      keys = Vector<typename Node::key_type>(
           reinterpret_cast<Node::key_type *>(buffer), nodeSchema.nKeys);
   }
 
@@ -669,7 +676,7 @@ FileBasedNodeManager<TKey, TVal, TOrdering>::load(long id) {
               file) != nodeSchema.nLinks)
       throw std::runtime_error("Can't read node links to file");
     else
-      node.links = Vector<typename Node::link_type>(
+      links = Vector<typename Node::link_type>(
           reinterpret_cast<Node::link_type *>(buffer), nodeSchema.nLinks);
   }
 
@@ -678,17 +685,27 @@ FileBasedNodeManager<TKey, TVal, TOrdering>::load(long id) {
               file) != nodeSchema.nValues)
       throw std::runtime_error("Can't read node values to file");
     else
-      node.values = Vector<typename Node::value_type>(
+      values = Vector<typename Node::value_type>(
           reinterpret_cast<Node::value_type *>(buffer), nodeSchema.nValues);
   }
 
+  Node node{.id = nodeSchema.id,
+            .level = nodeSchema.level,
+            .isLeaf = nodeSchema.isLeaf,
+            .keys = keys,
+            .links = links,
+            .values = values,
+            .nextNodeId = nodeSchema.nextNodeId,
+            .parentId = nodeSchema.parentId};
+
   fclose(file);
   free(buffer);
-	return node;
+  return node;
 }
 
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 void FileBasedNodeManager<TKey, TVal, TOrdering>::save(const Node &node) {
+	std::unique_lock lock(mutex_);
   fs::path nodePath = storagePath_ / algo::lltostring(node.id);
   NodeSchema nodeSchema{node.id,          node.level,        node.isLeaf,
                         node.keys.size(), node.links.size(), node.values.size(),

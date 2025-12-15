@@ -1,0 +1,23 @@
+components:
+  schemas:
+    InsertRequestBody:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+        tokens:
+          type: array
+          items:
+            type: integer
+          minItems: 1
+
+    InsertResponseBody:
+      type: object
+      additionalProperties: false
+      properties:
+        message:
+          type: string
+          default: empty
+
+

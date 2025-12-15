@@ -1,1 +1,0 @@
-Contigious allocator -> Vector -> BlockAllocator -> List -> Event -> B+tree onDestroy event for FileBased node manager
