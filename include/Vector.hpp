@@ -23,6 +23,7 @@ protected:
   void realloc_(size_t newCapacity);
 
 public:
+	using value_type = T;
   Vector();
   Vector(size_t n);
   Vector(size_t n, const T &value);
@@ -45,6 +46,7 @@ public:
   template <SameAs<T> U> Vector<T> &push_back(U &&value);
   template <typename... Args> Vector<T> &emplace_back(Args &&...args);
   Vector<T> &pop_back();
+	Vector<T> &clear();
 
   T &operator[](size_t i);
   const T &operator[](size_t i) const;
@@ -193,9 +195,9 @@ Vector<T>::Vector(Vector<T> &&other) noexcept
 }
 
 template <typename T> Vector<T> &Vector<T>::operator=(const Vector<T> &other) {
-  if (other.capacity_ > capacity_) {
-    data_ = reinterpret_cast<T *>(realloc_(data_, other.capacity_ * sizeof(T)));
-  }
+  if (other.capacity_ > capacity_) 
+    realloc_(other.capacity_);
+  
 
   size_t minSize = std::min(size_, other.size_);
   for (size_t i = 0; i < minSize; ++i)
@@ -216,9 +218,11 @@ Vector<T> &Vector<T>::operator=(Vector<T> &&other) noexcept {
   if (this == &other)
     return *this;
 
-  if (data_)
+  if (data_) {
     for (size_t i = 0; i < size_; ++i)
       data_[i].~T();
+		free(data_);
+	}
   data_ = other.data_;
   size_ = other.size_;
   capacity_ = other.capacity_;
@@ -298,6 +302,12 @@ Vector<T> &Vector<T>::emplace_back(Args &&...args) {
 template <typename T> Vector<T> &Vector<T>::pop_back() {
   if (size_ > 0)
     --size_, data_[size_].~T();
+  return *this;
+}
+template <typename T> Vector<T> &Vector<T>::clear() {
+	for(size_t i = 0; i < size_; ++i) 
+		data_[i].~T();
+	size_ = 0;
   return *this;
 }
 

@@ -8,45 +8,25 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <functional>
-#include <ios>
 #include <iostream>
 #include <iterator>
 #include <memory>
 #include <random>
 #include <stdexcept>
 #include <utility>
-#include <filesystem>
 #pragma once
 
 namespace IR {
-
 namespace bplustree {
-
-namespace fs = std::filesystem;
 enum class SameKeyOrdering { Random, Increase, AsInserted };
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 class INodeManager;
-} // namespace bplustree
 
-namespace bplustree::impl {
+namespace impl {
 using random_device = std::random_device;
 template <Comparable TKey, typename TVal, SameKeyOrdering T> struct KeyType {};
-
-template <Comparable TKey, typename TVal>
-struct KeyType<TKey, TVal, SameKeyOrdering::Random> {
-  using type = std::pair<TKey, random_device::result_type>;
-};
-
-template <Comparable TKey, Comparable TVal>
-struct KeyType<TKey, TVal, SameKeyOrdering::Increase> {
-  using type = std::pair<TKey, TVal>;
-};
-
-template <Comparable TKey, typename TVal>
-struct KeyType<TKey, TVal, SameKeyOrdering::AsInserted> {
-  using type = std::pair<TKey, size_t>;
-};
 
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 using _key_type = typename KeyType<TKey, TVal, TOrdering>::type;
@@ -66,21 +46,7 @@ using _key_type = typename KeyType<TKey, TVal, TOrdering>::type;
  * points to node with HIGHER values
  */
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
-struct Node {
-  using INodeManager = ::IR::bplustree::INodeManager<TKey, TVal, TOrdering>;
-  using key_type = _key_type<TKey, TVal, TOrdering>;
-  long id;
-  size_t level;
-
-  bool isLeaf = false;
-  Vector<key_type> keys;
-  Vector<long> links;
-  Vector<TVal> values;
-  long nextNodeId, parentId;
-
-  size_t n() const { return keys.size(); }
-  void print(std::ostream &os, int depth, INodeManager &manager);
-};
+struct Node;
 
 /**
  * @brief Key factories used for creating tree keys
@@ -88,45 +54,8 @@ struct Node {
  */
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 class KeyFactory {};
+} // namespace impl
 
-template <Comparable TKey, typename TVal>
-class KeyFactory<TKey, TVal, SameKeyOrdering::Random> {
-  random_device device_;
-  using key_type = _key_type<TKey, TVal, SameKeyOrdering::Random>;
-
-public:
-	template <SameAs<TKey> UKey, SameAs<TVal> UVal>
-  key_type operator()(UKey &&key, UVal &&val) {
-    return key_type{std::forward<TKey>(key), device_()};
-  }
-};
-
-template <Comparable TKey, typename TVal>
-class KeyFactory<TKey, TVal, SameKeyOrdering::Increase> {
-  using key_type = _key_type<TKey, TVal, SameKeyOrdering::Increase>;
-
-public:
-	template <SameAs<TKey> UKey, SameAs<TVal> UVal>
-  key_type operator()(UKey &&key, UVal &&val) {
-    return key_type{std::forward<TKey>(key), std::forward<TVal>(val)};
-  }
-};
-
-template <Comparable TKey, typename TVal>
-class KeyFactory<TKey, TVal, SameKeyOrdering::AsInserted> {
-  size_t nextValue_ = 0;
-  using key_type = _key_type<TKey, TVal, SameKeyOrdering::AsInserted>;
-
-public:
-  KeyFactory(size_t nextValue = 0) : nextValue_(nextValue) {}
-	template <SameAs<TKey> UKey, SameAs<TVal> UVal>
-  key_type operator()(UKey &&key, UVal &&val) {
-    return key_type{std::forward<TKey>(key), nextValue_++};
-  }
-};
-} // namespace bplustree::impl
-
-namespace bplustree {
 // Manage nodes (loading, saving and creating)
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 class INodeManager {
@@ -149,7 +78,7 @@ public:
    * Used when you know parent id of loading node. When loading child of
    * current node for example It is IMPORTANT to use this method when you know
    * parent's id because in other cases links to parents may be incorrect via
-   * splits and merges when inserting and deleting
+   * splits and merges after insertions and deletions
    *
    * @param id -- node to load id
    * @param currentNodeId -- id that will be set as parent id
@@ -162,6 +91,8 @@ public:
                       long nextNodeId = -1) = 0;
 };
 
+template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
+class FileBasedNodeManager;
 /**
  * @brief File system based B+ tree
  *
@@ -186,15 +117,17 @@ class BPlusTree {
   long split(Node &node);
 
   // Tree level -- 0 is leaf and root have maximum level
-  size_t level_ = 0, nodeCapacity_ = 8192, size_ = 0;
+  size_t level_ = 0, nodeCapacity_ = 1024;
   std::shared_ptr<NodeManager_type> nodeManager_;
   long rootId_ = -1;
   KeyFactory_type keyFactory_;
 
-	// Dispatch rootId between handlers when destroying
-	event::Event<long> onDestroy_;
+  // Dispatch rootId and size between handlers when destroying
+  event::Event<long> onDestroy_;
+  friend FileBasedNodeManager<TKey, TVal, TOrdering>;
+
 public:
-	event::IEvent<long> & onDestroy;
+  event::IEvent<long> &onDestroy;
   class Cursor {
     friend BPlusTree;
     using values_type = Vector<std::pair<TKey, TVal>>;
@@ -215,22 +148,19 @@ public:
   };
 
   BPlusTree(std::shared_ptr<NodeManager_type> nodeManager, long rootId = -1)
-      : onDestroy(onDestroy_), nodeManager_(std::move(nodeManager)), rootId_(rootId) {}
+      : onDestroy(onDestroy_), nodeManager_(nodeManager), rootId_(rootId) {}
 
   BPlusTree(std::shared_ptr<NodeManager_type> nodeManager, long rootId = -1,
-            size_t nodeCapacity = 8192)
-      : BPlusTree(std::move(nodeManager), rootId) {
-    nodeCapacity_ = nodeCapacity;
+            size_t nodeCapacity = 1024)
+      : onDestroy(onDestroy_), nodeManager_(nodeManager), rootId_(rootId),
+        nodeCapacity_(nodeCapacity) {
     if ((nodeCapacity_ & 1) || nodeCapacity_ <= 2)
       throw std::invalid_argument("Only even node capacity higher 2 allowed");
   }
 
-	~BPlusTree() {
-		onDestroy_.invoke(std::forward<long>(rootId_));
-	}
+  ~BPlusTree() { onDestroy_.invoke(std::forward<long>(rootId_)); }
 
-	template <SameAs<TKey> UKey>
-  Cursor find(UKey &&key);
+  template <SameAs<TKey> UKey> Cursor find(UKey &&key);
 
   /**
    * @brief Find values with key in [lower, higher] range
@@ -240,14 +170,12 @@ public:
    *
    * @return Cursor with founded values
    */
-	template <SameAs<TKey> UKey>
-  Cursor find(UKey &&lower, UKey &&higher);
+  template <SameAs<TKey> UKey> Cursor find(UKey &&lower, UKey &&higher);
 
-	template <SameAs<TKey> UKey, SameAs<TVal> UVal>
+  template <SameAs<TKey> UKey, SameAs<TVal> UVal>
   void insert(UKey &&key, UVal &&value);
 
-	template <SameAs<TKey> UKey>
-  void remove(UKey &&key);
+  template <SameAs<TKey> UKey> void remove(UKey &&key);
 
   /**
    * @brief For each node print
@@ -259,8 +187,6 @@ public:
    * with intendation equal node's depth
    */
   void print(std::ostream &os);
-
-  size_t size() const { return size_; }
 };
 
 /**
@@ -282,74 +208,70 @@ public:
               long nextNodeId = -1) override;
 };
 
+namespace fs = std::filesystem;
 /**
  * @brief Stores nodes on the files
  */
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 class FileBasedNodeManager : public INodeManager<TKey, TVal, TOrdering> {
+  struct NodeSchema {
+    long id;
+    size_t level;
+    bool isLeaf;
+    size_t nKeys, nLinks, nValues;
+    long nextNodeId, parentId;
+  };
+
 public:
-struct Schema {
-	long nextFreeId = 0;
-	long rootId = 0;
-};
+  struct Schema {
+    long nextFreeId = 0;
+    long rootId = -1;
+  };
+
 private:
-  using Node = INodeManager<TKey, TVal, TOrdering>::Node;
-	fs::path storagePath_;
-	Schema schema_;
+  using Node = impl::Node<TKey, TVal, TOrdering>;
+  struct SchemaUpdater : public event::IEventHandler<long> {
+    Schema *schema;
+    SchemaUpdater(Schema *schema) : schema(schema) {}
+    void operator()(long &&rootId) override final { schema->rootId = rootId; }
+  };
 
-	struct SchemaUpdater : public event::IEventHandler<long> {
-		Schema &schema;
-		void operator()(long rootId) {
-			schema.rootId = rootId;
-		}
-	};
-	
-	std::shared_ptr<SchemaUpdater> schemaUpdater_;
-	std::weak_ptr<BPlusTree<TKey, TVal, TOrdering>> tree_;
+  fs::path storagePath_;
+  Schema schema_;
+  std::shared_ptr<SchemaUpdater> schemaUpdater_;
+
 public:
-  FileBasedNodeManager(const fs::path & storagePath)
-		: storagePath_(storagePath), schemaUpdater_(std::shared_ptr(new SchemaUpdater{.schema = schema_})) {}
+  FileBasedNodeManager(const fs::path &storagePath)
+      : storagePath_(storagePath),
+        schemaUpdater_(std::make_shared<SchemaUpdater>(&schema_)) {}
 
-  FileBasedNodeManager(const fs::path & storagePath, Schema loadedSchema)
-		: FileBasedNodeManager(storagePath) {
-			schema_ = loadedSchema;
-		}
+  FileBasedNodeManager(const fs::path &storagePath, Schema loadedSchema)
+      : FileBasedNodeManager(storagePath) {
+    schema_ = loadedSchema;
+  }
 
-	constexpr static const char * schemaName = "schema";
+  constexpr static const char *schemaName = "schema";
 
   Node load(long id) override;
   Node load(long id, long parentId) override;
   void save(const Node &node) override;
   Node create(bool isLeaf, long parentId, size_t level,
               long nextNodeId = -1) override;
-	
-	void bindTo(std::shared_ptr<BPlusTree<TKey, TVal, TOrdering>> tree) {
-		tree_ = tree;
-		tree->onDestroy += schemaUpdater_;
-	}
 
-	~FileBasedNodeManager() {
-		if(auto treePtr = tree_.lock()) 
-			treePtr->onDestroy -= schemaUpdater_;
+  void bindTo(std::shared_ptr<BPlusTree<TKey, TVal, TOrdering>> tree);
 
-		fs::path schemaPath = storagePath_ / schemaName;
-		FILE * file = fopen(schemaPath.c_str(), "wb");
-		if(fwrite(&schema_, sizeof(Schema), 1, file) != 1) 
-			throw std::runtime_error("Can't save current schema to schema file");
-		fclose(file);
-	}
+  ~FileBasedNodeManager();
 };
 
 // -----------------------------------------
 // |  Out-line classes method definitions  |
 // -----------------------------------------
 
-
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 template <SameAs<TKey> UKey, SameAs<TVal> UVal>
-void BPlusTree<TKey, TVal, TOrdering>::insert(UKey &&key_,
-                                              UVal &&value) {
-  key_type key = keyFactory_(std::forward<UKey>(key_), std::forward<UVal>(value));
+void BPlusTree<TKey, TVal, TOrdering>::insert(UKey &&key_, UVal &&value) {
+  key_type key =
+      keyFactory_(std::forward<UKey>(key_), std::forward<UVal>(value));
   Node node;
   if (rootId_ < 0)
     node = nodeManager_->create(true, -1l, 0, -1), rootId_ = node.id;
@@ -357,13 +279,7 @@ void BPlusTree<TKey, TVal, TOrdering>::insert(UKey &&key_,
     node = nodeManager_->load(rootId_);
 
   // while not in leaf
-  while (node.level > 0 || node.n() == nodeCapacity_) {
-    if (node.n() == nodeCapacity_) {
-      auto parentId = split(node);
-      node = nodeManager_->load(parentId);
-      continue;
-    }
-
+  while (node.level > 0) {
     assert(("Only nodes with 0 level may be marked as leaf node",
             node.level > 0 && !node.isLeaf));
     auto it = algo::lowerBound(std::begin(node.keys), std::end(node.keys), key);
@@ -379,9 +295,13 @@ void BPlusTree<TKey, TVal, TOrdering>::insert(UKey &&key_,
   auto itVal = std::begin(node.values) + (itKey - std::begin(node.keys));
   node.keys.insert(itKey, key);
   node.values.insert(itVal, value);
+	while(node.n() >= nodeCapacity_) {
+		long parentId = split(node);
+		node = nodeManager_->load(parentId);
+	}
+		
 
   nodeManager_->save(node);
-  ++size_;
 }
 
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
@@ -393,8 +313,8 @@ BPlusTree<TKey, TVal, TOrdering>::find(UKey &&key) {
 
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 template <SameAs<TKey> UKey>
-BPlusTree<TKey, TVal, TOrdering>::Cursor BPlusTree<TKey, TVal, TOrdering>::find(UKey &&lower_,
-                                                          UKey &&higher_) {
+BPlusTree<TKey, TVal, TOrdering>::Cursor
+BPlusTree<TKey, TVal, TOrdering>::find(UKey &&lower_, UKey &&higher_) {
   typename Cursor::values_type result;
   key_type lower = keyFactory_(std::forward<UKey>(lower_), TVal()),
            higher = keyFactory_(std::forward<UKey>(higher_), TVal());
@@ -455,6 +375,7 @@ InMemoryNodeManager<TKey, TVal, TOrdering>::load(long nodeId, long parentId) {
   size_t index = index_[nodeId];
   Node node = storage_[index];
   node.parentId = parentId;
+	save(node);
   return node;
 }
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
@@ -468,7 +389,8 @@ void InMemoryNodeManager<TKey, TVal, TOrdering>::save(const Node &node) {
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 InMemoryNodeManager<TKey, TVal, TOrdering>::Node
 InMemoryNodeManager<TKey, TVal, TOrdering>::create(bool isLeaf, long parentId,
-                                        size_t level, long nextNodeId) {
+                                                   size_t level,
+                                                   long nextNodeId) {
   assert(("Leaves may be placed only at 0 level",
           (isLeaf && level == 0) || (!isLeaf && level != 0)));
   Node node{nextFreeId_++, level, isLeaf, {}, {}, {}, nextNodeId, parentId};
@@ -550,8 +472,78 @@ long BPlusTree<TKey, TVal, TOrdering>::split(Node &node) {
 }
 
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
-void impl::Node<TKey, TVal, TOrdering>::print(std::ostream &os, int depth,
-                                   INodeManager &manager) {
+void BPlusTree<TKey, TVal, TOrdering>::print(std::ostream &os) {
+  if (rootId_ < 0)
+    return;
+  Node root = nodeManager_->load(rootId_);
+  root.print(os, 0, *nodeManager_);
+}
+
+template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
+template <SameAs<TKey> UKey>
+void BPlusTree<TKey, TVal, TOrdering>::remove(UKey &&key) {
+  throw std::logic_error("Removing not realized yet");
+}
+
+namespace impl {
+template <Comparable TKey, typename TVal>
+class KeyFactory<TKey, TVal, SameKeyOrdering::Random> {
+  random_device device_;
+  using key_type = _key_type<TKey, TVal, SameKeyOrdering::Random>;
+
+public:
+  template <SameAs<TKey> UKey, SameAs<TVal> UVal>
+  key_type operator()(UKey &&key, UVal &&val) {
+    return key_type{std::forward<TKey>(key), device_()};
+  }
+};
+
+template <Comparable TKey, typename TVal>
+class KeyFactory<TKey, TVal, SameKeyOrdering::Increase> {
+  using key_type = _key_type<TKey, TVal, SameKeyOrdering::Increase>;
+
+public:
+  template <SameAs<TKey> UKey, SameAs<TVal> UVal>
+  key_type operator()(UKey &&key, UVal &&val) {
+    return key_type{std::forward<TKey>(key), std::forward<TVal>(val)};
+  }
+};
+
+template <Comparable TKey, typename TVal>
+class KeyFactory<TKey, TVal, SameKeyOrdering::AsInserted> {
+  size_t nextValue_ = 0;
+  using key_type = _key_type<TKey, TVal, SameKeyOrdering::AsInserted>;
+
+public:
+  KeyFactory(size_t nextValue = 0) : nextValue_(nextValue) {}
+  template <SameAs<TKey> UKey, SameAs<TVal> UVal>
+  key_type operator()(UKey &&key, UVal &&val) {
+    return key_type{std::forward<TKey>(key), nextValue_++};
+  }
+};
+
+template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
+struct Node {
+  using INodeManager = ::IR::bplustree::INodeManager<TKey, TVal, TOrdering>;
+  using key_type = _key_type<TKey, TVal, TOrdering>;
+  using link_type = long;
+  using value_type = TVal;
+  long id;
+  size_t level;
+
+  bool isLeaf = false;
+  Vector<key_type> keys;
+  Vector<long> links;
+  Vector<TVal> values;
+  long nextNodeId, parentId;
+
+  size_t n() const { return keys.size(); }
+  void print(std::ostream &os, int depth, INodeManager &manager);
+};
+
+template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
+void Node<TKey, TVal, TOrdering>::print(std::ostream &os, int depth,
+                                        INodeManager &manager) {
   for (int _ = 0; _ < depth; ++_)
     os << " | ";
   os << "id = " << id << std::boolalpha << "; isLeaf = " << isLeaf
@@ -582,18 +574,148 @@ void impl::Node<TKey, TVal, TOrdering>::print(std::ostream &os, int depth,
   }
 }
 
+template <Comparable TKey, typename TVal>
+struct KeyType<TKey, TVal, SameKeyOrdering::Random> {
+  using type = std::pair<TKey, random_device::result_type>;
+};
+
+template <Comparable TKey, Comparable TVal>
+struct KeyType<TKey, TVal, SameKeyOrdering::Increase> {
+  using type = std::pair<TKey, TVal>;
+};
+
+template <Comparable TKey, typename TVal>
+struct KeyType<TKey, TVal, SameKeyOrdering::AsInserted> {
+  using type = std::pair<TKey, size_t>;
+};
+
+} // namespace impl
+
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
-void BPlusTree<TKey, TVal, TOrdering>::print(std::ostream &os) {
-  if (rootId_ < 0)
-    return;
-  Node root = nodeManager_->load(rootId_);
-  root.print(os, 0, *nodeManager_);
+void FileBasedNodeManager<TKey, TVal, TOrdering>::bindTo(
+    std::shared_ptr<BPlusTree<TKey, TVal, TOrdering>> tree) {
+  tree->onDestroy += schemaUpdater_;
+  tree->rootId_ = schema_.rootId;
 }
 
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
-template <SameAs<TKey> UKey>
-void BPlusTree<TKey, TVal, TOrdering>::remove(UKey &&key) {
-  throw std::logic_error("Removing not realized yet");
+FileBasedNodeManager<TKey, TVal, TOrdering>::~FileBasedNodeManager() {
+  FILE *file = fopen((storagePath_ / schemaName).c_str(), "wb");
+  if (!file)
+    std::cerr << "Can't open schema file\n";
+  else if (fwrite(&schema_, sizeof(Schema), 1, file) != 1)
+    std::cerr << "Can't write schema data to file\n";
+
+	if(file) 
+		fclose(file);
+}
+
+template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
+impl::Node<TKey, TVal, TOrdering>
+FileBasedNodeManager<TKey, TVal, TOrdering>::create(bool isLeaf, long parentId,
+                                                    size_t level,
+                                                    long nextNodeId) {
+  return Node{.id = schema_.nextFreeId++,
+              .level = level,
+              .isLeaf = isLeaf,
+              .nextNodeId = nextNodeId,
+              .parentId = parentId};
+}
+
+template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
+impl::Node<TKey, TVal, TOrdering>
+FileBasedNodeManager<TKey, TVal, TOrdering>::load(long id, long parentId) {
+  Node node = load(id);
+  node.parentId = parentId;
+	save(node);
+  return node;
+}
+
+template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
+impl::Node<TKey, TVal, TOrdering>
+FileBasedNodeManager<TKey, TVal, TOrdering>::load(long id) {
+  fs::path nodePath = storagePath_ / algo::lltostring(id);
+  if (!fs::exists(nodePath))
+    throw std::invalid_argument("Node with requested id doesn't exist");
+  NodeSchema nodeSchema;
+  FILE *file = fopen(nodePath.c_str(), "rb");
+  if (!file)
+    throw std::runtime_error("Can't open file with node");
+
+  if (fread(&nodeSchema, sizeof(NodeSchema), 1, file) != 1)
+    throw std::runtime_error("Can't read node schema to file");
+
+  void *buffer = malloc(std::max(
+      nodeSchema.nKeys * sizeof(typename Node::key_type),
+      std::max(nodeSchema.nLinks * sizeof(typename Node::link_type),
+               nodeSchema.nValues * sizeof(typename Node::value_type))));
+  Node node{.id = nodeSchema.id,
+            .level = nodeSchema.level,
+            .isLeaf = nodeSchema.isLeaf,
+            .nextNodeId = nodeSchema.nextNodeId,
+            .parentId = nodeSchema.parentId};
+
+  if (nodeSchema.nKeys > 0) {
+    if (fread(buffer, sizeof(typename Node::key_type), nodeSchema.nKeys,
+              file) != nodeSchema.nKeys)
+      throw std::runtime_error("Can't read node keys to file");
+    else
+      node.keys = Vector<typename Node::key_type>(
+          reinterpret_cast<Node::key_type *>(buffer), nodeSchema.nKeys);
+  }
+
+  if (nodeSchema.nLinks > 0) {
+    if (fread(buffer, sizeof(typename Node::link_type), nodeSchema.nLinks,
+              file) != nodeSchema.nLinks)
+      throw std::runtime_error("Can't read node links to file");
+    else
+      node.links = Vector<typename Node::link_type>(
+          reinterpret_cast<Node::link_type *>(buffer), nodeSchema.nLinks);
+  }
+
+  if (nodeSchema.nValues > 0) {
+    if (fread(buffer, sizeof(typename Node::value_type), nodeSchema.nValues,
+              file) != nodeSchema.nValues)
+      throw std::runtime_error("Can't read node values to file");
+    else
+      node.values = Vector<typename Node::value_type>(
+          reinterpret_cast<Node::value_type *>(buffer), nodeSchema.nValues);
+  }
+
+  fclose(file);
+  free(buffer);
+	return node;
+}
+
+template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
+void FileBasedNodeManager<TKey, TVal, TOrdering>::save(const Node &node) {
+  fs::path nodePath = storagePath_ / algo::lltostring(node.id);
+  NodeSchema nodeSchema{node.id,          node.level,        node.isLeaf,
+                        node.keys.size(), node.links.size(), node.values.size(),
+                        node.nextNodeId,  node.parentId};
+  FILE *file = fopen(nodePath.c_str(), "wb");
+  if (!file)
+    throw std::runtime_error("Can't open file with node");
+
+  if (fwrite(&nodeSchema, sizeof(NodeSchema), 1, file) != 1)
+    throw std::runtime_error("Can't write node schema to file");
+
+  if (nodeSchema.nKeys > 0 &&
+      fwrite(node.keys.data(), sizeof(typename Node::key_type),
+             nodeSchema.nKeys, file) != nodeSchema.nKeys)
+    throw std::runtime_error("Can't write node keys to file");
+
+  if (nodeSchema.nLinks > 0 &&
+      fwrite(node.links.data(), sizeof(typename Node::link_type),
+             nodeSchema.nLinks, file) != nodeSchema.nLinks)
+    throw std::runtime_error("Can't write node links to file");
+
+  if (nodeSchema.nValues > 0 &&
+      fwrite(node.values.data(), sizeof(typename Node::value_type),
+             nodeSchema.nValues, file) != nodeSchema.nValues)
+    throw std::runtime_error("Can't write node values to file");
+
+  fclose(file);
 }
 } // namespace bplustree
 } // namespace IR

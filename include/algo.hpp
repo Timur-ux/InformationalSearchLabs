@@ -39,5 +39,13 @@ bool binarySearch(TIt first, TIt last, const TVal &value) {
 
   return res != last && *res == value;
 }
+
+/**
+ * @brief Convert non negative long integer to C-string view
+ * @param n nuber to convert (n >= 0)
+ *
+ * @return pointer to stringified n or NULL if n < 0
+ */
+const char * lltostring(long n);
 } // namespace IR::algo
 #endif // !ALGO_HPP_

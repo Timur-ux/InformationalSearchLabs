@@ -28,7 +28,7 @@ public:
   void invoke(Args &&...args) {
     for (auto handler : handlers_)
       if (std::shared_ptr<handler_t> ptr = handler.lock())
-        (*ptr)(std::forward(args)...);
+        (*ptr)(std::forward<Args>(args)...);
   }
 
   IEvent<Args...> &
@@ -40,7 +40,7 @@ public:
   IEvent<Args...> &
   operator-=(std::shared_ptr<handler_t> handler) override final {
     auto it = handlers_.begin(), end = handlers_.end();
-    while (*it != handler && it != end)
+    while (it->lock() != handler && it != end)
       ++it;
 
     if (it == end)

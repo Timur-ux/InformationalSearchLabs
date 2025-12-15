@@ -1,4 +1,5 @@
 #include <clocale>
+#include <filesystem>
 #include <iostream>
 #include <regex>
 #include <string>
@@ -11,6 +12,10 @@ int main() {
 	IR::Trie<wchar_t, size_t> tokens;
 
 	std::wstring text, line;
+	if(std::filesystem::exists("/tmp/temporary-trie-data-file")) 
+		tokens.deserialize("/tmp/temporary-trie-data-file");
+	std::cout << "Tokens at begin: " <<  tokens.size()<< '\n';
+
 	while(std::getline(std::wcin, line)) 
 		text += line + L'\n';
 
@@ -28,6 +33,9 @@ int main() {
 	}
 
 	std::wcout << "]\n";
+	std::cout << "Tokens at end: " <<  tokens.size()<< '\n';
+
+	tokens.serialize("/tmp/temporary-trie-data-file");
 
 	return 0;
 }

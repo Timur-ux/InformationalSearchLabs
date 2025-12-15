@@ -361,7 +361,7 @@ void Map<TKey, TVal>::balanceLeft(Node *node) {
   // left->balance == R
   Node *leftRight = left->right;
   rotateLeft(left);
-  rotateRight(leftRight);
+  rotateRight(node);
   node->balance = Balanced;
   left->balance = Balanced;
 
@@ -392,7 +392,7 @@ void Map<TKey, TVal>::balanceRight(Node *node) {
   // right->balance == L
   Node *rightLeft = right->left;
   rotateRight(right);
-  rotateLeft(rightLeft);
+  rotateLeft(node);
   node->balance = Balanced;
   right->balance = Balanced;
 
