@@ -67,8 +67,8 @@ public:
   /**
    * @brief Load and read parent id from node's data
    * Throws error if parent node not pointed (i.e. < 0)
-   * Used when you don't know parentId. When loading parent of current node
-   * for example
+   * Used when you do const operations such find or don't know parent id. When
+   * loading parent of current node for example
    *
    * @param id -- node to load id
    *
@@ -79,8 +79,9 @@ public:
    * @brief load node and set it parent's id
    * Used when you know parent id of loading node. When loading child of
    * current node for example It is IMPORTANT to use this method when you know
-   * parent's id because in other cases links to parents may be incorrect via
-   * splits and merges after insertions and deletions
+   * parent's id and do non const operations such as insertions and deletions
+   * because in other cases links to parents may be incorrect via splits and
+   * merges after insertions and deletions
    *
    * @param id -- node to load id
    * @param currentNodeId -- id that will be set as parent id
@@ -123,6 +124,8 @@ class BPlusTree {
   std::shared_ptr<NodeManager_type> nodeManager_;
   long rootId_ = -1;
   KeyFactory_type keyFactory_;
+
+  mutable std::shared_mutex mutex_;
 
   // Dispatch rootId and size between handlers when destroying
   event::Event<long> onDestroy_;
@@ -242,8 +245,6 @@ private:
   Schema schema_;
   std::shared_ptr<SchemaUpdater> schemaUpdater_;
 
-  std::shared_mutex mutex_;
-
 public:
   FileBasedNodeManager(const fs::path &storagePath)
       : storagePath_(storagePath),
@@ -274,6 +275,7 @@ public:
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 template <SameAs<TKey> UKey, SameAs<TVal> UVal>
 void BPlusTree<TKey, TVal, TOrdering>::insert(UKey &&key_, UVal &&value) {
+  std::unique_lock lock(mutex_);
   key_type key =
       keyFactory_(std::forward<UKey>(key_), std::forward<UVal>(value));
   Node node;
@@ -318,6 +320,7 @@ template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 template <SameAs<TKey> UKey>
 BPlusTree<TKey, TVal, TOrdering>::Cursor
 BPlusTree<TKey, TVal, TOrdering>::find(UKey &&lower_, UKey &&higher_) const {
+  std::shared_lock lock(mutex_);
   typename Cursor::values_type result;
   key_type lower, higher;
   lower.first = lower_, higher.first = higher_;
@@ -328,7 +331,9 @@ BPlusTree<TKey, TVal, TOrdering>::find(UKey &&lower_, UKey &&higher_) const {
   auto cmpBorder = [](const key_type &k1, const key_type &k2) -> bool {
     return k1.first <= k2.first;
   };
-  assert((cmp(lower, higher)));
+  if (!cmpBorder(lower, higher))
+    throw std::invalid_argument("Lower bound is bigger than higher border");
+
   if (rootId_ < 0)
     return Cursor(result);
 
@@ -338,8 +343,9 @@ BPlusTree<TKey, TVal, TOrdering>::find(UKey &&lower_, UKey &&higher_) const {
 
     auto it = algo::lowerBound(node.keys.begin(), node.keys.end(), lower, cmp);
     auto i = it - node.keys.begin();
-    node = nodeManager_->load(node.links.at(i), node.id);
+    node = nodeManager_->load(node.links.at(i));
   }
+
   auto begin = node.keys.begin(), end = node.keys.end(),
        it = algo::lowerBound(begin, end, lower, cmp);
   while (cmpBorder(*it, higher)) {
@@ -498,7 +504,7 @@ class KeyFactory<TKey, TVal, SameKeyOrdering::Random> {
 public:
   template <SameAs<TKey> UKey, SameAs<TVal> UVal>
   key_type operator()(UKey &&key, UVal &&val) {
-    return key_type{std::forward<TKey>(key), device_()};
+    return key_type{std::forward<UKey>(key), device_()};
   }
 };
 
@@ -509,7 +515,7 @@ class KeyFactory<TKey, TVal, SameKeyOrdering::Increase> {
 public:
   template <SameAs<TKey> UKey, SameAs<TVal> UVal>
   key_type operator()(UKey &&key, UVal &&val) {
-    return key_type{std::forward<TKey>(key), std::forward<TVal>(val)};
+    return key_type{std::forward<UKey>(key), std::forward<UVal>(val)};
   }
 };
 
@@ -522,7 +528,7 @@ public:
   KeyFactory(size_t nextValue = 0) : nextValue_(nextValue) {}
   template <SameAs<TKey> UKey, SameAs<TVal> UVal>
   key_type operator()(UKey &&key, UVal &&val) {
-    return key_type{std::forward<TKey>(key), nextValue_++};
+    return key_type{std::forward<UKey>(key), nextValue_++};
   }
 };
 
@@ -642,7 +648,6 @@ FileBasedNodeManager<TKey, TVal, TOrdering>::load(long id, long parentId) {
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 impl::Node<TKey, TVal, TOrdering>
 FileBasedNodeManager<TKey, TVal, TOrdering>::load(long id) {
-  std::shared_lock lock(mutex_);
   fs::path nodePath = storagePath_ / algo::lltostring(id);
   if (!fs::exists(nodePath))
     throw std::invalid_argument("Node with requested id doesn't exist");
@@ -705,7 +710,6 @@ FileBasedNodeManager<TKey, TVal, TOrdering>::load(long id) {
 
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 void FileBasedNodeManager<TKey, TVal, TOrdering>::save(const Node &node) {
-	std::unique_lock lock(mutex_);
   fs::path nodePath = storagePath_ / algo::lltostring(node.id);
   NodeSchema nodeSchema{node.id,          node.level,        node.isLeaf,
                         node.keys.size(), node.links.size(), node.values.size(),

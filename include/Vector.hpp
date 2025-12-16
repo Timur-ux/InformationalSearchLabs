@@ -262,11 +262,11 @@ template <typename T> Vector<T>::iterator Vector<T>::end() {
 }
 
 template <typename T> Vector<T>::const_iterator Vector<T>::begin() const {
-  return iterator(data_);
+  return const_iterator(data_);
 }
 
 template <typename T> Vector<T>::const_iterator Vector<T>::end() const {
-  return iterator(data_ + size_);
+  return const_iterator(data_ + size_);
 }
 
 template <typename T> void Vector<T>::realloc_(size_t newCapacity) {

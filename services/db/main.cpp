@@ -1,9 +1,8 @@
-#include "BPlusTree.hpp"
 #include "handlers/insert.hpp"
-#include "factory/BPlusTreeFactory.hpp"
-#include <cstdint>
+#include "handlers/document.hpp"
+#include "handlers/token.hpp"
 #include <cstdlib>
-#include <stdexcept>
+#include <cstring>
 #include <userver/components/minimal_server_component_list.hpp>
 #include <userver/components/run.hpp>
 #include <userver/utils/daemon_run.hpp>
@@ -11,28 +10,23 @@
 #include "embedded/include/generated/static_config.yaml.hpp"
 
 using namespace userver;
+using namespace SERVICE_NAMESPACE;
 
-int main(int argc, const char *argw[]) {
-  // const char *storagePath = getenv("STORAGE_PATH");
-  // if (!storagePath)
-  //   throw std::runtime_error("environment variable [STORAGE PATH] not set");
-  //
-  // auto forwardDB =
-  //     IR::bplustree::FileBasedBPlusTreeFactory<
-  //         uint32_t, uint32_t, IR::bplustree::SameKeyOrdering::AsInserted>(
-  //         1024, storagePath, "forward")
-  //         .createTree();
-  //
-  // auto backwarddDB =
-  //     IR::bplustree::FileBasedBPlusTreeFactory<
-  //         uint32_t, uint32_t, IR::bplustree::SameKeyOrdering::Increase>(
-  //         1024, storagePath, "backward")
-  //         .createTree();
-
+int main(int argc, const char * argw[]) {
   auto componentsList = components::MinimalServerComponentList()
-                            .Append<dbService::InsertHandler>();
+                            .Append<InsertHandler>()
+														.Append<DocumentHandler>()
+														.Append<TokenHandler>();
 
+	bool useInMemoryConfig = true;
+	for(int i = 1; i < argc && useInMemoryConfig; ++i) 
+		if(strcmp(argw[i], "--config") == 0) 
+			useInMemoryConfig = false;
+		
 	auto config = components::InMemoryConfig{utils::FindResource(CONFIG_NAME)};
 
-  return utils::DaemonMain(config, componentsList);
+	if(useInMemoryConfig) 
+		return utils::DaemonMain(config, componentsList);
+	else
+		return utils::DaemonMain(argc, argw, componentsList);
 }

@@ -1,5 +1,5 @@
 set(serviceName dbService)
-set(configName static_config_yml)
+set(configName static_config_yaml)
 
 file(GLOB_RECURSE ${serviceName}_src LIST_DIRECTORIES FALSE ./src/*.cpp)
 userver_embed_file(${serviceName}_config NAME ${configName} FILEPATH ${CMAKE_CURRENT_SOURCE_DIR}/static_config.yaml)
@@ -17,14 +17,27 @@ userver_target_generate_chaotic(
     RELATIVE_TO ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+
 add_library(${serviceName}_lib OBJECT ${${serviceName}_src})
 target_link_libraries(${serviceName}_lib PUBLIC userver::core ${serviceName}-chgen)
 target_include_directories(${serviceName}_lib PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_BINARY_DIR}/include")
+target_compile_definitions(${serviceName}_lib PUBLIC  SERVICE_NAMESPACE=${serviceName})
 
 add_executable(${serviceName} ./main.cpp)
 target_link_libraries(${serviceName} PRIVATE ${serviceName}_config PRIVATE ${serviceName}_lib PRIVATE ${CMAKE_PROJECT_NAME}_lib)
 target_include_directories(${serviceName} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include" PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(${serviceName} PRIVATE CONFIG_NAME="${configName}")
+
+userver_testsuite_add(
+	SERVICE_TARGET ${serviceName}
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests
+	PYTHON_BINARY ${TESTSUITE_PYTHON_BINARY}
+	PYTEST_ARGS
+	--service-binary=${CMAKE_CURRENT_BINARY_DIR}/${serviceName}
+	--service-config=${CMAKE_CURRENT_SOURCE_DIR}/static_config.yaml
+	-rf
+	--service-source-dir=${CMAKE_CURRENT_SOURCE_DIR}
+)
 
 unset(serviceName)
 unset(configName)

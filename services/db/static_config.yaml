@@ -1,22 +1,33 @@
 components_manager:
-    task_processors:                  # Task processor is an executor for coroutine tasks
-        main-task-processor:          # Make a task processor for CPU-bound coroutine tasks.
-            worker_threads: 4         # Process tasks in 4 threads.
+    task_processors:             
+        main-task-processor:          
+            worker_threads: 4         
  
-        fs-task-processor:            # A separate task processor for filesystem bound and synchronous tasks.
+        fs-task-processor:            
             worker_threads: 1
  
-    components:                       # Configuring components that were registered via component_list
+    components:                       
         server:
-            listener:                 # configuring the main listening socket...
-                port: 8080            # ...to listen on this port and...
+            listener:                 
+                port: 8080            
         logging:
             loggers:
                 default:
                     file_path: '@stderr'
                     level: debug
-                    overflow_behavior: discard  # Drop logs if the system is too busy to write them down.
+                    overflow_behavior: discard  
  
-        insert-handler:             # Finally! Our handler.
-            path: /insert                  # Registering handler by URL '/hello'.
-            method: POST              # It will only reply to GET (HEAD) and POST requests.
+        insert-handler:             
+            path: /insert           
+            method: POST            
+            task_processor: fs-task-processor
+
+        document-handler:
+          path: /document
+          method: GET
+          task_processor: main-task-processor
+
+        token-handler:
+          path: /token
+          method: GET
+          task_processor: main-task-processor

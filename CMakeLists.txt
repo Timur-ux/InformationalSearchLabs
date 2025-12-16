@@ -51,11 +51,9 @@ target_include_directories(${CMAKE_PROJECT_NAME}_lib PUBLIC "./include/")
 include_directories(include)
 
 add_executable(main ./main.cpp)
-add_executable(tokenizer ./Tokenizer.cpp)
 add_executable(tests ${${CMAKE_PROJECT_NAME}_tests_src})
 
 target_link_libraries(main PRIVATE ${CMAKE_PROJECT_NAME}_lib)
-target_link_libraries(tokenizer PRIVATE ${CMAKE_PROJECT_NAME}_lib)
 target_link_libraries(tests PRIVATE ${CMAKE_PROJECT_NAME}_lib GTest::gtest_main)
 
 if(${CMAKE_BUILD_TYPE} EQUAL Release)
@@ -72,3 +70,4 @@ gtest_discover_tests(tests)
 # |  add services  |
 # ------------------
 add_subdirectory("./services/db/")
+add_subdirectory("./services/tokenizer/")
