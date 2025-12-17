@@ -12,10 +12,10 @@
 
 1. POST /doIndex
 
-Тело запроса содержит url страницы
+Тело запроса содержит id страницы
 ```js
 {
-	"pageUrl": string
+	"pageId": int
 }
 ```
 

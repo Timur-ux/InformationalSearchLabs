@@ -4,6 +4,9 @@ from scrapy.utils.url import canonicalize_url
 from settings import ALLOWED_DOMAINS, INITIAL_URLS
 from pymongo import MongoClient
 from datetime import datetime
+from bs4 import BeautifulSoup as bs
+import re
+
 
 
 class DefaultSpider(scrapy.Spider):
@@ -15,17 +18,20 @@ class DefaultSpider(scrapy.Spider):
         super().__init__(self.name, *args, **kwargs)
         self.parsed = 0
         self.mongoClient = MongoClient("mongodb://localhost:27017/")
-        self.db = self.mongoClient["test"]
+        self.db = self.mongoClient["index"]
         self.collection = self.db["ParsedDocuments"]
+        self.counters = self.db["Counters"]
 
     def parse(self, response):
         normalizedUrl = canonicalize_url(response.url)
         title = response.css("title::text").get()
-        content = response.body
+        soup = bs(response.body, 'html.parser')
+        content = re.sub(r"\s{2,}", " ", soup.get_text(separator=' '))
         timestamp = datetime.now()
+        oldCounter = self.counters._find_and_modify(filter={"_id": "documentID"}, projection=None, sort=None, update={"$inc": {"value": 1}})
         self.collection.insert_one(
-            {"url": normalizedUrl, "raw": content, "title": title, "timestamp": timestamp})
+                {"_id": oldCounter["value"], "url": normalizedUrl, "raw": content, "title": title, "timestamp": timestamp})
         for link in response.xpath("//a/@href").getall():
             if not link.startswith("http"):
                 continue
-            yield response.follow(link, self.parse)
+            # yield response.follow(link, self.parse)

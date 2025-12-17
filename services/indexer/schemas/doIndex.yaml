@@ -4,8 +4,9 @@ components:
       type: object
       additionalProperties: false
       properties:
-        pageUrl:
-          type: string
+        pageId:
+          type: integer
+          x-usrv-cpp-type: std::uint32_t
 
     DoIndexResponseBody:
       type: string

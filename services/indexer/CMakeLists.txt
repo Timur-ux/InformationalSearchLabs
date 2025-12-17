@@ -1,5 +1,5 @@
 # assume that userver already found by root CMakeLists.txt
-set(serviceName tempService)
+set(serviceName indexService)
 set(configName static_config_yaml)
 set(schemasPath ${CMAKE_CURRENT_BINARY_DIR}/include)
 
@@ -22,7 +22,7 @@ userver_target_generate_chaotic(
 
 # library from src files
 add_library(${serviceName}_lib OBJECT ${${serviceName}_src})
-target_link_libraries(${serviceName}_lib PUBLIC userver::core ${serviceName}-chgen)
+target_link_libraries(${serviceName}_lib PUBLIC userver::core userver::mongo ${serviceName}-chgen)
 target_include_directories(${serviceName}_lib PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include" ${schemasPath})
 target_compile_definitions(${serviceName}_lib PUBLIC SERVICE_NAMESPACE=${serviceName})
 

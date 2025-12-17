@@ -71,3 +71,4 @@ gtest_discover_tests(tests)
 # ------------------
 add_subdirectory("./services/db/")
 add_subdirectory("./services/tokenizer/")
+add_subdirectory("./services/indexer/")

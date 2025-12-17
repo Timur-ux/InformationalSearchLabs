@@ -1,8 +1,10 @@
-#include "handlers/temp.hpp"
+#include "handlers/index.hpp"
 #include <cstdlib>
 #include <cstring>
 #include <userver/components/minimal_server_component_list.hpp>
 #include <userver/components/run.hpp>
+#include <userver/clients/dns/component.hpp>
+#include <userver/storages/mongo/component.hpp>
 #include <userver/utils/daemon_run.hpp>
 #include <userver/utils/resources.hpp>
 #include "embedded/include/generated/static_config.yaml.hpp"
@@ -12,7 +14,9 @@ using namespace SERVICE_NAMESPACE;
 
 int main(int argc, const char * argw[]) {
   auto componentsList = components::MinimalServerComponentList()
-														.Append<TempHandler>();
+														.Append<clients::dns::Component>()
+														.Append<components::Mongo>("mongo-index")
+														.Append<IndexHandler>();
 
 	bool useInMemoryConfig = true;
 	for(int i = 1; i < argc && useInMemoryConfig; ++i) 
