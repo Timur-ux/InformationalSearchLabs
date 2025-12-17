@@ -1,0 +1,13 @@
+components:
+  schemas:
+    DoIndexRequestBody:
+      type: object
+      additionalProperties: false
+      properties:
+        pageUrl:
+          type: string
+
+    DoIndexResponseBody:
+      type: string
+      default: success
+
