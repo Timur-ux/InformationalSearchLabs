@@ -1,3 +1,4 @@
+third_party/*
 # c++ aux
 compile_commands.json
 # crawles state folder

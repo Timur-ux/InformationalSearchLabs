@@ -25,3 +25,9 @@ components_manager:
     mongo-index:
       dbconnection: mongodb://localhost:27017/index
  
+    index-http-client:
+      pool-statistics-disable: true
+      thread-name-prefix: index-http-client
+      threads: 2
+      fs-task-processor: fs-task-processor
+      user-agent: common_component_list sample
