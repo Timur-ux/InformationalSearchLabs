@@ -1,0 +1,30 @@
+components_manager:
+  task_processors:
+    main-task-processor:
+      worker_threads: 4
+
+    fs-task-processor:
+      worker_threads: 1
+ 
+  components:
+    server:
+      listener:
+        port: 8082
+
+    logging:
+      loggers:
+        default:
+          file_path: '@stderr'
+          level: debug
+          overflow_behavior: discard
+
+    tokenize-handler:
+      path: /tokenize
+      method: POST
+      task_processor: main-task-processor
+
+    detokenize-handler:
+      path: /detokenize
+      method: POST
+      task_processor: main-task-processor
+ 

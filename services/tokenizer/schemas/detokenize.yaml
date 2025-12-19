@@ -1,0 +1,12 @@
+components:
+  schemas:
+    DetokenizeRequestBody:
+      type: array
+      items:
+        type: integer
+        minimum: 0
+        x-usrv-cpp-type: std::uint32_t
+
+    DetokenizeResponseBody:
+      type: string
+
