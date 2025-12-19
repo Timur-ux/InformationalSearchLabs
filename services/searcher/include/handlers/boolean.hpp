@@ -18,7 +18,7 @@
 
 namespace SERVICE_NAMESPACE {
 using namespace userver;
-class IndexHandler final : public server::handlers::HttpHandlerJsonBase {
+class BooleanSearchHandler final : public server::handlers::HttpHandlerJsonBase {
   storages::mongo::PoolPtr pool_;
   clients::http::Client &httpClient_;
 
@@ -39,7 +39,7 @@ public:
   using HttpRequest = server::http::HttpRequest;
   using RequestContext = server::request::RequestContext;
 
-  IndexHandler(const components::ComponentConfig &config,
+  BooleanSearchHandler(const components::ComponentConfig &config,
                const components::ComponentContext &context);
   Value HandleRequestJsonThrow(const HttpRequest &request,
                                const Value &requestJson,

@@ -5,6 +5,8 @@ components_manager:
 
     fs-task-processor:
       worker_threads: 1
+
+  default_task_processor: main-task-processor
  
   components:
     server:
@@ -17,17 +19,27 @@ components_manager:
           level: debug
           overflow_behavior: discard
 
-    index-handler:
-      path: /doIndex
-      method: POST
+    boolean-search-handler:
+      path: /search/boolean
+      method: GET
+      task_processor: main-task-processor
+
+    quote-search-handler:
+      path: /search/quote
+      method: GET
       task_processor: main-task-processor
 
     mongo-index:
       dbconnection: mongodb://localhost:27017/index
  
-    index-http-client:
+    http-client:
       pool-statistics-disable: true
       thread-name-prefix: index-http-client
       threads: 2
       fs-task-processor: fs-task-processor
-      user-agent: common_component_list sample
+      user-agent: searcher-service 1.0
+
+    requester-service:
+      fs-task-processor: fs-task-processor
+      user-agent: searcher-service 1.0
+      
