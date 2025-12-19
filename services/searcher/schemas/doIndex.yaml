@@ -1,0 +1,14 @@
+components:
+  schemas:
+    DoIndexRequestBody:
+      type: object
+      additionalProperties: false
+      properties:
+        pageId:
+          type: integer
+          x-usrv-cpp-type: std::uint32_t
+
+    DoIndexResponseBody:
+      type: string
+      default: success
+

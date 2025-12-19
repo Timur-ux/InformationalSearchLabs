@@ -1,3 +1,5 @@
+from scrapy_aiohttp.utils import DEFAULT_AIOHTTP_REQUEST_HEADERS_CONFIG
+
 # Scrapy settings for NetSpider project
 #
 # For simplicity, this file contains only settings considered important or
@@ -46,9 +48,9 @@ DOWNLOAD_DELAY = 1
 
 # Enable or disable downloader middlewares
 # See https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
-#DOWNLOADER_MIDDLEWARES = {
-#    "NetSpider.middlewares.NetspiderDownloaderMiddleware": 543,
-#}
+DOWNLOADER_MIDDLEWARES = {
+   "scrapy_aiohttp.AiohttpMiddleware": 651,
+}
 
 # Enable or disable extensions
 # See https://docs.scrapy.org/en/latest/topics/extensions.html
@@ -85,3 +87,6 @@ DOWNLOAD_DELAY = 1
 
 # Set settings whose default value is deprecated to a future-proof value
 FEED_EXPORT_ENCODING = "utf-8"
+
+AIOHTTP_SERVER_URL = "http://localhost:8079"
+AIOHTTP_REQUEST_HEADERS_CONFIG = DEFAULT_AIOHTTP_REQUEST_HEADERS_CONFIG

@@ -24,10 +24,10 @@ IndexHandler::IndexHandler(const components::ComponentConfig &config,
       pool_(context.FindComponent<components::Mongo>("mongo-index").GetPool()),
       httpClient_(
           context.FindComponent<components::HttpClient>("index-http-client").GetHttpClient()) {
-  tokenizeServiceAddr_ = getenv("TOKENIZER_SERVICE_ADDR");
+  tokenizeServiceAddr_ = getenv("TOKENIZE_SERVICE_ADDR");
   if (!tokenizeServiceAddr_) {
-    LOG_CRITICAL() << "Env variable [TOKENIZER_SERVICE_ADDR] is not set";
-		throw std::runtime_error("Env variable [TOKENIZER_SERVICE_ADDR] is not set");
+    LOG_CRITICAL() << "Env variable [TOKENIZE_SERVICE_ADDR] is not set";
+		throw std::runtime_error("Env variable [TOKENIZE_SERVICE_ADDR] is not set");
 	}
 
   dbServiceAddr_ = getenv("DB_SERVICE_ADDR");

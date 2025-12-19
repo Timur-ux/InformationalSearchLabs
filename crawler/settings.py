@@ -22,6 +22,7 @@ INITIAL_URLS=[
         ]
 
 ALLOWED_DOMAINS=[
+"localhost",
 "ria.ru",
 "kp.ru",
 "lenta.ru",
@@ -43,3 +44,5 @@ ALLOWED_DOMAINS=[
 "tsargrad.tv",
 "riafan.ru",
         ]
+
+

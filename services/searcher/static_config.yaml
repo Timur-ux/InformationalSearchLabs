@@ -1,0 +1,33 @@
+components_manager:
+  task_processors:
+    main-task-processor:
+      worker_threads: 4
+
+    fs-task-processor:
+      worker_threads: 1
+ 
+  components:
+    server:
+      listener:
+        port: 8080
+    logging:
+      loggers:
+        default:
+          file_path: '@stderr'
+          level: debug
+          overflow_behavior: discard
+
+    index-handler:
+      path: /doIndex
+      method: POST
+      task_processor: main-task-processor
+
+    mongo-index:
+      dbconnection: mongodb://localhost:27017/index
+ 
+    index-http-client:
+      pool-statistics-disable: true
+      thread-name-prefix: index-http-client
+      threads: 2
+      fs-task-processor: fs-task-processor
+      user-agent: common_component_list sample

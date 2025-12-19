@@ -1,3 +1,5 @@
 scrapy
 pymongo
 beautifulsoup4
+aiohttp
+scrapy-aiohttp
