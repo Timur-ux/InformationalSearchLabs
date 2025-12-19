@@ -11,7 +11,7 @@ components_manager:
   components:
     server:
       listener:
-        port: 8080
+        port: 8083
     logging:
       loggers:
         default:
@@ -29,17 +29,12 @@ components_manager:
       method: GET
       task_processor: main-task-processor
 
-    mongo-index:
+    mongo:
       dbconnection: mongodb://localhost:27017/index
  
     http-client:
       pool-statistics-disable: true
-      thread-name-prefix: index-http-client
+      thread-name-prefix: http-client
       threads: 2
       fs-task-processor: fs-task-processor
       user-agent: searcher-service 1.0
-
-    requester-service:
-      fs-task-processor: fs-task-processor
-      user-agent: searcher-service 1.0
-      

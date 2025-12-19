@@ -1,8 +1,8 @@
-#ifndef TOKEN_HANDLER_HPP_
-#define TOKEN_HANDLER_HPP_
+#ifndef BOOLEAN_SEARCH_HANDLER_HPP_
+#define BOOLEAN_SEARCH_HANDLER_HPP_
 
-#include "Vector.hpp"
-#include <chrono>
+#include "Requester.hpp"
+#include <cstdint>
 #include <userver/clients/http/client.hpp>
 #include <userver/clients/http/component.hpp>
 #include <userver/clients/http/request.hpp>
@@ -14,7 +14,6 @@
 #include <userver/server/request/request_context.hpp>
 #include <userver/storages/mongo/component.hpp>
 #include <userver/storages/mongo/pool.hpp>
-#include <vector>
 
 namespace SERVICE_NAMESPACE {
 using namespace userver;
@@ -22,17 +21,8 @@ class BooleanSearchHandler final : public server::handlers::HttpHandlerJsonBase 
   storages::mongo::PoolPtr pool_;
   clients::http::Client &httpClient_;
 
-	static constexpr size_t retries_ = 1;
-
-	const char * tokenizeServiceAddr_;
-	const char * dbServiceAddr_;
-
-  void indexPage(std::uint32_t pageId) const;
-  std::vector<std::uint32_t> tokenize(std::string data) const;
-  void insertTokensToDB(std::uint32_t pageId, std::vector<std::uint32_t> tokens) const;
-
 public:
-  static constexpr std::string_view kName = "index-handler";
+  static constexpr std::string_view kName = "boolean-search-handler";
 
   using server::handlers::HttpHandlerJsonBase::HttpHandlerJsonBase;
   using Value = formats::json::Value;
@@ -41,10 +31,22 @@ public:
 
   BooleanSearchHandler(const components::ComponentConfig &config,
                const components::ComponentContext &context);
+
   Value HandleRequestJsonThrow(const HttpRequest &request,
                                const Value &requestJson,
                                RequestContext &context) const override;
+
+	/**
+	 * @brief Get values that contains in all key's values
+	 *
+	 * @param kv keys and values vector; values also vectors
+	 *
+	 * Assume that values is sorted in non-decrease order
+	 *
+	 * @return values that contains in all kv pairs
+	 */
+	static std::vector<std::uint32_t> getValuesIntersection(std::vector<typename Requester::KeyValues> kv);
 };
 } // namespace SERVICE_NAMESPACE
 
-#endif // !TOKEN_HANDLER_HPP_
+#endif // !BOOLEAN_SEARCH_HANDLER_HPP_

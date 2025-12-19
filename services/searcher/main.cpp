@@ -1,4 +1,5 @@
-#include "handlers/index.hpp"
+#include "handlers/boolean.hpp"
+#include "handlers/quote.hpp"
 #include <cstdlib>
 #include <cstring>
 #include <userver/clients/http/component.hpp>
@@ -16,9 +17,10 @@ using namespace SERVICE_NAMESPACE;
 int main(int argc, const char * argw[]) {
   auto componentsList = components::MinimalServerComponentList()
 														.Append<clients::dns::Component>()
-														.Append<components::Mongo>("mongo-index")
-														.Append<components::HttpClient>("index-http-client")
-														.Append<IndexHandler>();
+														.Append<components::Mongo>("mongo")
+														.Append<components::HttpClient>("http-client")
+														.Append<BooleanSearchHandler>()
+														.Append<QuoteSearchHandler>();
 
 	bool useInMemoryConfig = true;
 	for(int i = 1; i < argc && useInMemoryConfig; ++i) 

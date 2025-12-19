@@ -22,8 +22,6 @@ class IndexHandler final : public server::handlers::HttpHandlerJsonBase {
   storages::mongo::PoolPtr pool_;
   clients::http::Client &httpClient_;
 
-	static constexpr size_t retries_ = 1;
-
 	const char * tokenizeServiceAddr_;
 	const char * dbServiceAddr_;
 

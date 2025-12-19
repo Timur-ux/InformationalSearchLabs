@@ -1,0 +1,6 @@
+components:
+  schemas:
+    SearchResponseBody:
+      type: array
+      items:
+        $ref: 'pageData.yaml#/components/schemas/PageData'

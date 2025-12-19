@@ -27,7 +27,7 @@ public:
   Vector();
   Vector(size_t n);
   Vector(size_t n, const T &value);
-  Vector(T *data, size_t len);
+  Vector(const T *data, size_t len);
 
   Vector(const Vector &other);
   Vector(Vector &&other) noexcept;
@@ -235,7 +235,7 @@ Vector<T> &Vector<T>::operator=(Vector<T> &&other) noexcept {
 }
 
 template <typename T>
-Vector<T>::Vector(T *data, size_t len) : size_(len), capacity_(len + 1) {
+Vector<T>::Vector(const T *data, size_t len) : size_(len), capacity_(len + 1) {
   data_ = reinterpret_cast<T *>(malloc(capacity_ * sizeof(T)));
   for (size_t i = 0; i < len; ++i)
     new (data_ + i) T(data[i]);

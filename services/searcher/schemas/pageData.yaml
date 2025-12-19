@@ -1,0 +1,12 @@
+components:
+  schemas:
+    PageData:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+        url:
+          type: string
+
+

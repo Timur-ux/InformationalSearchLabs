@@ -1,3 +1,6 @@
+// ------------------------------
+// |  File for some hand tests  |
+// ------------------------------
 #include "BPlusTree.hpp"
 #include "Trie.hpp"
 #include "factory/BPlusTreeFactory.hpp"

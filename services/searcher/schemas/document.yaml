@@ -1,0 +1,21 @@
+components:
+  schemas:
+    DocumentsResponseBody:
+      type: array
+      items:
+        type: object
+        additionalProperties: false
+        properties:
+          tokenId:
+            type: integer
+            minimum: 0
+            x-usrv-cpp-type: std::uint32_t
+          documentIds:
+            type: array
+            items:
+              type: integer
+              minimum: 0
+              x-usrv-cpp-type: std::uint32_t
+
+
+
