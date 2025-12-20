@@ -45,7 +45,7 @@ std::vector<std::uint32_t> Requester::tokenize(clients::http::Client &client,
           .url(std::format("{}/{}", tokenizeServiceAddr_, "tokenize"))
           .data(std::move(requestData))
           .retry(1)
-          .timeout(1000);
+          .timeout(kTimeout_ms);
 
   auto response = request.perform();
   if (response->IsOk())
@@ -69,7 +69,7 @@ Requester::getTokens(clients::http::Client &client,
   for (size_t i = 1; i < documentIds.size(); ++i)
     oss << "&id=" << documentIds[i];
   auto request =
-      client.CreateRequest().get().url(oss.str()).retry(1).timeout(1000);
+      client.CreateRequest().get().url(oss.str()).retry(1).timeout(kTimeout_ms);
 
   auto response = request.perform();
   if (!response->IsOk()) {
@@ -112,7 +112,7 @@ Requester::getDocuments(clients::http::Client &client,
   for (size_t i = 1; i < tokenIds.size(); ++i)
     oss << "&id=" << tokenIds[i];
   auto request =
-      client.CreateRequest().get().url(oss.str()).retry(1).timeout(1000);
+      client.CreateRequest().get().url(oss.str()).retry(1).timeout(kTimeout_ms);
 
   auto response = request.perform();
   if (!response->IsOk()) {

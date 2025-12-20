@@ -21,4 +21,3 @@ RUN \
   && update-locale LC_ALL="en_US.UTF-8" LANG="en_US.UTF-8" LANGUAGE="en_US.UTF-8" 
 
 RUN /service_tmp/ubuntu-install-mongodb.sh
-RUN dpkg -i /service_tmp/ubuntu24.04-libuserver-all-dev_2.13_amd64.deb

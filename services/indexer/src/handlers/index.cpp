@@ -80,7 +80,7 @@ std::vector<std::uint32_t> IndexHandler::tokenize(std::string data) const {
           .url(std::format("{}/{}", tokenizeServiceAddr_, "tokenize"))
           .data(std::move(requestData))
           .retry(1)
-					.timeout(1000);
+					.timeout(kTimeout_ms);
 
   auto res = request.perform();
   if (res->IsOk()) 
@@ -105,7 +105,7 @@ void IndexHandler::insertTokensToDB(std::uint32_t pageId,
                      .url(std::format("{}/{}", dbServiceAddr_, "insert"))
                      .data(std::move(requestData))
                      .retry(1)
-										 .timeout(5000);
+										 .timeout(kTimeout_ms);
 
   auto res = request.perform();
   if (res->IsError())

@@ -1,22 +1,11 @@
-ARG serviceName
-ARG servicePath
 # install userver dependencies and userver himself via .deb package
 # .dep package with userver must be placed at docker/deps/ folder
-FROM userver-base:latest AS builder
+FROM userver-base:latest 
+ARG servicePath
+ARG serviceName
 
 WORKDIR /code
+COPY  ../build/build-release/${servicePath}/${serviceName} .
+ENV serviceName=$serviceName
 
-COPY . .
-
-RUN /code/docker/buildService.sh
-
-FROM userver-base:latest
-ARG serviceName
-ARG servicePath
-
-ENV serviceName=${serviceName}
-EXPOSE 8080
-
-COPY --from=builder /build/${servicePath}/${serviceName} /bin/${serviceName}
-ENTRYPOINT /bin/$serviceName
-
+ENTRYPOINT ./${serviceName}

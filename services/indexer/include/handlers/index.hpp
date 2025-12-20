@@ -21,6 +21,7 @@ using namespace userver;
 class IndexHandler final : public server::handlers::HttpHandlerJsonBase {
   storages::mongo::PoolPtr pool_;
   clients::http::Client &httpClient_;
+	const unsigned long kTimeout_ms = 10000;
 
 	const char * tokenizeServiceAddr_;
 	const char * dbServiceAddr_;

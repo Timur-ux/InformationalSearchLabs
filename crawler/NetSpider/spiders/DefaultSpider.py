@@ -48,4 +48,4 @@ class DefaultSpider(scrapy.Spider):
             yield response.follow(link, self.parse)
 
     def indexer_parse(self, response):
-        print("Indexer response:", response.status, "; content:", response.text)
+        print("Indexer response content:", response.text)

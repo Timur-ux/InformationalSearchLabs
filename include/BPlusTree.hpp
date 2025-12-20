@@ -320,7 +320,7 @@ template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 template <SameAs<TKey> UKey>
 BPlusTree<TKey, TVal, TOrdering>::Cursor
 BPlusTree<TKey, TVal, TOrdering>::find(UKey &&lower_, UKey &&higher_) const {
-  std::shared_lock lock(mutex_);
+  std::unique_lock lock(mutex_);
   typename Cursor::values_type result;
   key_type lower, higher;
   lower.first = lower_, higher.first = higher_;
@@ -343,7 +343,7 @@ BPlusTree<TKey, TVal, TOrdering>::find(UKey &&lower_, UKey &&higher_) const {
 
     auto it = algo::lowerBound(node.keys.begin(), node.keys.end(), lower, cmp);
     auto i = it - node.keys.begin();
-    node = nodeManager_->load(node.links.at(i));
+    node = nodeManager_->load(node.links.at(i), node.id);
   }
 
   auto begin = node.keys.begin(), end = node.keys.end(),
