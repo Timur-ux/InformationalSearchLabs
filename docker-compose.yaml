@@ -1,0 +1,124 @@
+# docker run --security-opt seccomp=unconfined -p 8080:8080 --name=db-service db-service:latest
+services:
+  db:
+    container_name: db
+    build:
+      dockerfile: ./docker/service.dockerfile
+      args:
+        serviceName: dbService
+        servicePath: services/db
+    environment:
+      STORAGE_PATH: /storage
+    security_opt:
+      - seccomp=unconfined
+    volumes:
+      - "${STORAGE:-/tmp}/logs:/logs"
+      - "${STORAGE:-/tmp}/db:/storage"
+    networks:
+      - backend
+
+  tokenizer:
+    container_name: tokenizer
+    build:
+      dockerfile: ./docker/service.dockerfile
+      args:
+        serviceName: tokenizerService
+        servicePath: services/tokenizer
+    environment:
+      STORAGE_PATH: /storage
+    security_opt:
+      - seccomp=unconfined
+    volumes:
+      - "${STORAGE:-/tmp}/tokenizer:/storage"
+      - "${STORAGE:-/tmp}/logs:/logs"
+    networks:
+      - backend
+
+  indexer:
+    container_name: indexer
+    build:
+      dockerfile: ./docker/service.dockerfile
+      args:
+        serviceName: indexService
+        servicePath: services/indexer
+    environment:
+      TOKENIZER_SERVICE_ADDR: "http://tokenizer:8080"
+      DB_SERVICE_ADDR: "http://db:8080"
+    volumes:
+      - "${STORAGE:-/tmp}/logs:/logs"
+    security_opt:
+      - seccomp=unconfined
+    depends_on:
+      - tokenizer
+      - db
+      - mongo
+    networks:
+      - backend
+
+  searcher:
+    container_name: searcher
+    build:
+      dockerfile: ./docker/service.dockerfile
+      args:
+        serviceName: searchService
+        servicePath: services/searcher
+    environment:
+      TOKENIZER_SERVICE_ADDR: "http://tokenizer:8080"
+      DB_SERVICE_ADDR: "http://db:8080"
+    volumes:
+      - "${STORAGE:-/tmp}/logs:/logs"
+    security_opt:
+      - seccomp=unconfined
+    depends_on:
+      - tokenizer
+      - db
+      - mongo
+    networks:
+      - backend
+      - frontend
+
+  crawler:
+    container_name: crawler
+    build: ./crawler/
+    environment:
+      INDEXER_SERVICE_ADDR: "http://indexer:8080"
+      MONGO_ADDR: "mongodb://mongo:27017"
+      STORAGE_PATH: /storage
+    volumes:
+      - "${STORAGE:-/tmp}/logs:/logs"
+      - "${STORAGE:-/tmp}/crawler:/storage"
+    depends_on:
+      - indexer
+      - mongo
+    networks:
+      - backend
+
+  mongo:
+    container_name: mongo
+    image: mongo:latest
+    environment:
+      MONGO_INITDB_DATABASE: "index"
+    volumes:
+      - "${STORAGE:-/tmp}/mongo:/data/db"
+      - "./cfg/mongo-init.js:/docker-entrypoint-inidb.d/mongo-init.js:ro"
+    networks:
+      - backend
+
+  # nginx:
+    # container_name: nginx
+  #   build:
+  #     context: ./frontend
+  #   ports:
+  #     - "8080:8080"
+  #   depends_on:
+  #     - searcher
+  #   networks:
+  #     - frontend
+
+networks:
+  backend:
+    driver: bridge
+  frontend:
+    driver: bridge
+
+

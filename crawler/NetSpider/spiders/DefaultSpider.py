@@ -17,7 +17,10 @@ class DefaultSpider(scrapy.Spider):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(self.name, *args, **kwargs)
         self.parsed = 0
-        self.mongoClient = MongoClient("mongodb://localhost:27017/")
+        mongoAddr: str = getenv("MONGO_ADDR")
+        if mongoAddr is None:
+            raise RuntimeError("Env variable [MONGO_ADDR] not set")
+        self.mongoClient = MongoClient(mongoAddr)
         self.db = self.mongoClient["index"]
         self.collection = self.db["ParsedDocuments"]
         self.counters = self.db["Counters"]
@@ -25,7 +28,6 @@ class DefaultSpider(scrapy.Spider):
         self.indexerAddr: str = getenv("INDEXER_SERVICE_ADDR")
         if self.indexerAddr is None:
             raise RuntimeError("Env variable [INDEXER_SERVICE_ADDR] not set")
-        self.indexerAddr += "/doIndex"
 
     async def parse(self, response):
         normalizedUrl = canonicalize_url(response.url)
@@ -35,14 +37,15 @@ class DefaultSpider(scrapy.Spider):
         timestamp = datetime.now()
         oldCounter = self.counters._find_and_modify(
             filter={"_id": "documentID"}, projection=None, sort=None, update={"$inc": {"value": 1}})
+        print("OLD COUNTER:", oldCounter)
         self.collection.insert_one(
             {"_id": oldCounter["value"], "url": normalizedUrl, "raw": content, "title": title, "timestamp": timestamp})
 
-        self.indexer_parse(requests.post(url=self.indexerAddr, json={"pageId": oldCounter["value"]}))
+        self.indexer_parse(requests.post(url=f"{self.indexerAddr}/doIndex", json={"pageId": oldCounter["value"]}))
         for link in response.xpath("//a/@href").getall():
             if not link.startswith("http"):
                 continue
-            # yield response.follow(link, self.parse)
+            yield response.follow(link, self.parse)
 
     def indexer_parse(self, response):
         print("Indexer response:", response.status, "; content:", response.text)

@@ -13,7 +13,7 @@ components_manager:
     logging:
       loggers:
         default:
-          file_path: '@stderr'
+          file_path: '/logs/index.log'
           level: debug
           overflow_behavior: discard
 
@@ -23,7 +23,8 @@ components_manager:
       task_processor: main-task-processor
 
     mongo-index:
-      dbconnection: mongodb://localhost:27017/index
+      # dbconnection: mongodb://localhost:27017/index # local tests
+      dbconnection: mongodb://mongo:27017/index # docker
  
     index-http-client:
       pool-statistics-disable: true

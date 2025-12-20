@@ -11,11 +11,11 @@ components_manager:
   components:
     server:
       listener:
-        port: 8083
+        port: 8080
     logging:
       loggers:
         default:
-          file_path: '@stderr'
+          file_path: '/logs/search.log'
           level: debug
           overflow_behavior: discard
 
@@ -30,7 +30,8 @@ components_manager:
       task_processor: main-task-processor
 
     mongo:
-      dbconnection: mongodb://localhost:27017/index
+      # dbconnection: mongodb://localhost:27017/index # local tests
+      dbconnection: mongodb://mongo:27017/index # docker
  
     http-client:
       pool-statistics-disable: true

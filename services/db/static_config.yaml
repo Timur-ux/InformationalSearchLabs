@@ -9,11 +9,11 @@ components_manager:
     components:                       
         server:
             listener:                 
-                port: 8081            
+                port: 8080            
         logging:
             loggers:
                 default:
-                    file_path: '@stderr'
+                    file_path: '/logs/db.log'
                     level: debug
                     overflow_behavior: discard  
  

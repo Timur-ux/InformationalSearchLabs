@@ -31,7 +31,7 @@ Tokenizer::Tokenizer() {
 
 	storagePath_ = storagePath;
 
-	if(std::filesystem::exists(storagePath_)) 
+	if(std::filesystem::exists(storagePath_ / "forward")) 
 		load();
 }
 

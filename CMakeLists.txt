@@ -56,13 +56,6 @@ add_executable(tests ${${CMAKE_PROJECT_NAME}_tests_src})
 target_link_libraries(main PRIVATE ${CMAKE_PROJECT_NAME}_lib)
 target_link_libraries(tests PRIVATE ${CMAKE_PROJECT_NAME}_lib GTest::gtest_main)
 
-if(${CMAKE_BUILD_TYPE} EQUAL Release)
-	add_executable(indexer ./Indexer.cpp)
-	target_link_libraries(indexer PRIVATE ${CMAKE_PROJECT_NAME}_lib userver::mongo)
-else()
-	message(STATUS "Mongocxx library not configured under not Release build so i skip indexer that needs it")
-endif()
-
 include(GoogleTest)
 gtest_discover_tests(tests)
 

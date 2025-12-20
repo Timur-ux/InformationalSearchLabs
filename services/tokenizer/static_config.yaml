@@ -9,12 +9,12 @@ components_manager:
   components:
     server:
       listener:
-        port: 8082
+        port: 8080
 
     logging:
       loggers:
         default:
-          file_path: '@stderr'
+          file_path: '/logs/token.log'
           level: debug
           overflow_behavior: discard
 
