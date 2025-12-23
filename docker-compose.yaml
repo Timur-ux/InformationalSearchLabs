@@ -106,16 +106,15 @@ services:
     networks:
       - backend
 
-  # nginx:
-    # container_name: nginx
-  #   build:
-  #     context: ./frontend
-  #   ports:
-  #     - "8080:8080"
-  #   depends_on:
-  #     - searcher
-  #   networks:
-  #     - frontend
+  web:
+    build:
+      context: ./frontend
+    ports:
+      - 80:3000
+    depends_on:
+      - searcher
+    networks:
+      - frontend
 
 networks:
   backend:
