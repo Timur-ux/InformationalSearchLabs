@@ -1,3 +1,4 @@
+import bs4
 import scrapy
 import json
 from scrapy.utils.url import canonicalize_url
@@ -17,7 +18,7 @@ class DefaultSpider(scrapy.Spider):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(self.name, *args, **kwargs)
         self.parsed = 0
-        mongoAddr: str = getenv("MONGO_ADDR")
+        mongoAddr: str | None = getenv("MONGO_ADDR")
         if mongoAddr is None:
             raise RuntimeError("Env variable [MONGO_ADDR] not set")
         self.mongoClient = MongoClient(mongoAddr)
@@ -25,23 +26,25 @@ class DefaultSpider(scrapy.Spider):
         self.collection = self.db["ParsedDocuments"]
         self.counters = self.db["Counters"]
 
-        self.indexerAddr: str = getenv("INDEXER_SERVICE_ADDR")
-        if self.indexerAddr is None:
+        indexerAddr: str | None = getenv("INDEXER_SERVICE_ADDR")
+        if indexerAddr is None:
             raise RuntimeError("Env variable [INDEXER_SERVICE_ADDR] not set")
+        self.indexerAddr: str = indexerAddr
 
     async def parse(self, response):
         normalizedUrl = canonicalize_url(response.url)
         title = response.css("title::text").get()
         soup = bs(response.body, 'html.parser')
-        content = re.sub(r"\s{2,}", " ", soup.get_text(separator=' '))
+        soup = self.clean_soup(soup)
+
+        content = re.sub(r"\s{2,}", " ", str(soup))
         timestamp = datetime.now()
+
         oldCounter = self.counters._find_and_modify(
             filter={"_id": "documentID"}, projection=None, sort=None, update={"$inc": {"value": 1}})
-        print("OLD COUNTER:", oldCounter)
         self.collection.insert_one(
-            {"_id": oldCounter["value"], "url": normalizedUrl, "raw": content, "title": title, "timestamp": timestamp})
+                {"_id": oldCounter["value"], "url": normalizedUrl, "raw": content, "title": title, "timestamp": timestamp, "indexed": False})
 
-        self.indexer_parse(requests.post(url=f"{self.indexerAddr}/doIndex", json={"pageId": oldCounter["value"]}))
         for link in response.xpath("//a/@href").getall():
             if not link.startswith("http"):
                 continue
@@ -49,3 +52,11 @@ class DefaultSpider(scrapy.Spider):
 
     def indexer_parse(self, response):
         print("Indexer response content:", response.text)
+
+    def clean_soup(self, soup: bs4.element.Tag) -> bs4.element.Tag:
+        for s in soup.select("script"):
+            s.extract()
+        for s in soup.select("style"):
+            s.extract()
+
+        return soup

@@ -90,7 +90,6 @@ services:
       - "${STORAGE:-/tmp}/logs:/logs"
       - "${STORAGE:-/tmp}/crawler:/storage"
     depends_on:
-      - indexer
       - mongo
     networks:
       - backend
@@ -102,7 +101,7 @@ services:
       MONGO_INITDB_DATABASE: "index"
     volumes:
       - "${STORAGE:-/tmp}/mongo:/data/db"
-      - "./cfg/mongo-init.js:/docker-entrypoint-inidb.d/mongo-init.js:ro"
+      - "./cfg/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro"
     networks:
       - backend
 
