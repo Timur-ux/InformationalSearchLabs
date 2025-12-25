@@ -1,9 +1,15 @@
-FROM python:3.12-slim
+FROM python:3.12-slim AS builder
 
-WORKDIR /app
+RUN python -m venv /opt/venv
+
+COPY ./requirements.txt .
+
+RUN /opt/venv/bin/pip install -r ./requirements.txt
+
+FROM python:3.12-slim 
 
 COPY . .
-
-RUN python -m venv /venv && /venv/bin/python -m pip install -r /app/requirements.txt
+COPY --from=builder /opt/venv /opt/venv/
+ENV PATH="/opt/venv/bin:$PATH"
 
 ENTRYPOINT [ "./main.sh" ]
