@@ -1,6 +1,9 @@
 #ifndef TOKENIZE_HANDLER_HPP_
 #define TOKENIZE_HANDLER_HPP_
+#include "components/Tokenizer.hpp"
 #include <codecvt>
+#include <userver/components/component_config.hpp>
+#include <userver/components/component_context.hpp>
 #include <userver/formats/json/value.hpp>
 #pragma once
 
@@ -10,13 +13,15 @@
 namespace SERVICE_NAMESPACE {
 using namespace userver;
 class TokenizeHandler final : public server::handlers::HttpHandlerJsonBase {
+	Tokenizer & tokenizer_;
 public:
   static constexpr std::string_view kName = "tokenize-handler";
 
-  using server::handlers::HttpHandlerJsonBase::HttpHandlerJsonBase;
 	using HttpRequest = server::http::HttpRequest;
 	using Value = formats::json::Value;
 	using RequestContext = server::request::RequestContext;
+
+	TokenizeHandler(const components::ComponentConfig &config, const components::ComponentContext & context);
 
 	Value HandleRequestJsonThrow(const HttpRequest &request, const Value &requestJson,
                                RequestContext &context) const override;

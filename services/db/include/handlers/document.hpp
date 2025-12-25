@@ -1,5 +1,8 @@
 #ifndef DOCUMENT_HANDLER_HPP_
 #define DOCUMENT_HANDLER_HPP_
+#include "components/DataBase.hpp"
+#include <userver/components/component_config.hpp>
+#include <userver/components/component_context.hpp>
 #pragma once
 
 #include <userver/server/handlers/http_handler_base.hpp>
@@ -8,12 +11,14 @@
 namespace SERVICE_NAMESPACE {
 using namespace userver;
 class DocumentHandler final : public server::handlers::HttpHandlerBase {
+	DataBase & db_;
 public:
   static constexpr std::string_view kName = "document-handler";
 
-  using server::handlers::HttpHandlerBase::HttpHandlerBase;
 	using HttpRequest = server::http::HttpRequest;
 	using RequestContext = server::request::RequestContext;
+
+	DocumentHandler(const components::ComponentConfig & config, const components::ComponentContext & context);
 
 	std::string HandleRequest(HttpRequest &request,
                                RequestContext &context) const override;

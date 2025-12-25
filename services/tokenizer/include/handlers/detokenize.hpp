@@ -1,5 +1,6 @@
 #ifndef DETOKENIZE_HANDLER_HPP_
 #define DETOKENIZE_HANDLER_HPP_
+#include "components/Tokenizer.hpp"
 #include <codecvt>
 #include <locale>
 #include <userver/formats/json/value.hpp>
@@ -11,14 +12,16 @@
 namespace SERVICE_NAMESPACE {
 using namespace userver;
 class DetokenizeHandler final : public server::handlers::HttpHandlerJsonBase {
+	Tokenizer & tokenizer_;
 public:
   static constexpr std::string_view kName = "detokenize-handler";
 
-  using server::handlers::HttpHandlerJsonBase::HttpHandlerJsonBase;
 	using HttpRequest = server::http::HttpRequest;
 	using Value = formats::json::Value;
 	using RequestContext = server::request::RequestContext;
 
+	DetokenizeHandler(const components::ComponentConfig &config,
+                                 const components::ComponentContext &context);
 	Value HandleRequestJsonThrow(const HttpRequest &request, const Value &requestJson,
                                RequestContext &context) const override;
 };

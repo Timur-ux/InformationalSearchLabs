@@ -1,5 +1,6 @@
 #ifndef TOKEN_HANDLER_HPP_
 #define TOKEN_HANDLER_HPP_
+#include "components/DataBase.hpp"
 #pragma once
 
 #include <userver/server/handlers/http_handler_base.hpp>
@@ -8,13 +9,15 @@
 namespace SERVICE_NAMESPACE {
 using namespace userver;
 class TokenHandler final : public server::handlers::HttpHandlerBase {
+	DataBase & db_;
 public:
   static constexpr std::string_view kName = "token-handler";
 
-  using server::handlers::HttpHandlerBase::HttpHandlerBase;
 	using HttpRequest = server::http::HttpRequest;
 	using RequestContext = server::request::RequestContext;
 
+	TokenHandler(const components::ComponentConfig &config,
+                                 const components::ComponentContext &context);
 	std::string HandleRequest(HttpRequest &request,
                                RequestContext &context) const override;
 };

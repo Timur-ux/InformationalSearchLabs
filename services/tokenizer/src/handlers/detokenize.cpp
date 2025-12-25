@@ -4,9 +4,13 @@
 #include <userver/formats/json/value_builder.hpp>
 #include <userver/http/content_type.hpp>
 #include "schemas/detokenize.hpp"
-#include "Tokenizer.hpp"
+#include "components/Tokenizer.hpp"
 
 namespace SERVICE_NAMESPACE {
+DetokenizeHandler::DetokenizeHandler(const components::ComponentConfig &config,
+                                 const components::ComponentContext &context)
+	: HttpHandlerJsonBase(config, context),
+	tokenizer_(context.FindComponent<TokenizerComponent>().GetTokenizer()){}
 formats::json::Value
 DetokenizeHandler::HandleRequestJsonThrow(const HttpRequest &request,
                                         const Value &requestJson,
@@ -15,7 +19,7 @@ DetokenizeHandler::HandleRequestJsonThrow(const HttpRequest &request,
 	request.GetHttpResponse().SetContentType(userver::http::content_type::kApplicationJson);
 	auto requestBody = requestJson.As<detokenize::DetokenizeRequestBody>();
 
-	auto text = Tokenizer::instance().detokenize(IR::Vector<std::uint32_t>{requestBody.data(), requestBody.size()});
+	auto text = tokenizer_.detokenize(IR::Vector<std::uint32_t>{requestBody.data(), requestBody.size()});
 
 	detokenize::DetokenizeResponseBody responseBody{cvt_.to_bytes(text)};
 

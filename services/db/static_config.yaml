@@ -16,7 +16,9 @@ components_manager:
                     file_path: '/logs/db.log'
                     level: debug
                     overflow_behavior: discard  
- 
+
+        database:
+
         insert-handler:             
             path: /insert           
             method: POST            

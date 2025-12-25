@@ -1,5 +1,5 @@
 #include "handlers/tokenize.hpp"
-#include "Tokenizer.hpp"
+#include "components/Tokenizer.hpp"
 #include "schemas/tokenize.hpp"
 #include <cctype>
 #include <userver/formats/json/serialize.hpp>
@@ -9,6 +9,10 @@
 #include <userver/http/content_type.hpp>
 
 namespace SERVICE_NAMESPACE {
+TokenizeHandler::TokenizeHandler(const components::ComponentConfig &config,
+                                 const components::ComponentContext &context)
+    : HttpHandlerJsonBase(config, context),
+      tokenizer_(context.FindComponent<TokenizerComponent>().GetTokenizer()) {}
 formats::json::Value
 TokenizeHandler::HandleRequestJsonThrow(const HttpRequest &request,
                                         const Value &requestJson,
@@ -22,7 +26,7 @@ TokenizeHandler::HandleRequestJsonThrow(const HttpRequest &request,
   for (wchar_t &c : requestBody)
     c = tolower(c);
 
-  auto tokens = Tokenizer::instance().tokenize(requestBody);
+  auto tokens = tokenizer_.tokenize(requestBody);
 
   tokenize::TokenizeResponseBody responseBody{std::begin(tokens),
                                               std::end(tokens)};

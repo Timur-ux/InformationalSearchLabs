@@ -18,6 +18,9 @@ components_manager:
           level: debug
           overflow_behavior: discard
 
+    tokenizer:
+      task_processor: fs-task-processor
+
     tokenize-handler:
       path: /tokenize
       method: POST
