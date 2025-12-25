@@ -3,46 +3,51 @@
 
 #include "Vector.hpp"
 #include <chrono>
+#include <string_view>
 #include <userver/clients/http/client.hpp>
 #include <userver/clients/http/component.hpp>
 #include <userver/clients/http/request.hpp>
 #include <userver/components/component.hpp>
+#include <userver/components/component_base.hpp>
 #include <userver/components/component_config.hpp>
+#include <userver/formats/bson/document.hpp>
 #include <userver/formats/json/value.hpp>
 #include <userver/server/handlers/http_handler_json_base.hpp>
 #include <userver/server/http/http_request.hpp>
 #include <userver/server/request/request_context.hpp>
 #include <userver/storages/mongo/component.hpp>
 #include <userver/storages/mongo/pool.hpp>
+#include <userver/yaml_config/schema.hpp>
 #include <vector>
 
 namespace SERVICE_NAMESPACE {
 using namespace userver;
-class IndexHandler final : public server::handlers::HttpHandlerJsonBase {
+class Indexer final : public components::ComponentBase {
   storages::mongo::PoolPtr pool_;
   clients::http::Client &httpClient_;
-	const unsigned long kTimeout_ms = 10000;
+
+	int batchSize_;
+	long batchDelay_;
+	const unsigned long kTimeout_ms = 300000;
+
 
 	const char * tokenizeServiceAddr_;
 	const char * dbServiceAddr_;
 
-  void indexPage(std::uint32_t pageId) const;
+  void indexPage(formats::bson::Document doc) const;
   std::vector<std::uint32_t> tokenize(std::string data) const;
   void insertTokensToDB(std::uint32_t pageId, std::vector<std::uint32_t> tokens) const;
 
+	void taskFunc();
+
+
 public:
-  static constexpr std::string_view kName = "index-handler";
+  static constexpr std::string_view kName = "indexer";
+	static yaml_config::Schema GetStaticConfigSchema();
 
-  using server::handlers::HttpHandlerJsonBase::HttpHandlerJsonBase;
-  using Value = formats::json::Value;
-  using HttpRequest = server::http::HttpRequest;
-  using RequestContext = server::request::RequestContext;
 
-  IndexHandler(const components::ComponentConfig &config,
+  Indexer(const components::ComponentConfig &config,
                const components::ComponentContext &context);
-  Value HandleRequestJsonThrow(const HttpRequest &request,
-                               const Value &requestJson,
-                               RequestContext &context) const override;
 };
 } // namespace SERVICE_NAMESPACE
 

@@ -17,10 +17,10 @@ components_manager:
           level: debug
           overflow_behavior: discard
 
-    index-handler:
-      path: /doIndex
-      method: POST
-      task_processor: main-task-processor
+    indexer:
+      task-processor: fs-task-processor
+      batch-size: 20 # quantity of documents indexed per request
+      batch-delay: 40 # in seconds
 
     mongo-index:
       # dbconnection: mongodb://localhost:27017/index # local tests

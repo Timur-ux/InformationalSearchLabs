@@ -1,4 +1,4 @@
-#include "handlers/index.hpp"
+#include "components/index.hpp"
 #include <cstdlib>
 #include <cstring>
 #include <userver/clients/http/component.hpp>
@@ -18,7 +18,7 @@ int main(int argc, const char * argw[]) {
 														.Append<clients::dns::Component>()
 														.Append<components::Mongo>("mongo-index")
 														.Append<components::HttpClient>("index-http-client")
-														.Append<IndexHandler>();
+														.Append<Indexer>();
 
 	bool useInMemoryConfig = true;
 	for(int i = 1; i < argc && useInMemoryConfig; ++i) 
