@@ -1,14 +1,45 @@
 #ifndef ALGO_HPP_
 #define ALGO_HPP_
+#include "Map.hpp"
 #include "concepts.hpp"
 #include <algorithm>
 #include <cassert>
+#include <cstdint>
 #include <functional>
 #include <iterator>
 #include <string>
 #pragma once
 
 namespace IR::algo {
+
+inline std::vector<std::uint32_t>
+getUnique(const std::vector<std::uint32_t> &data) {
+  IR::Map<std::uint32_t, bool> entries;
+  for (auto &item : data)
+    entries[item] = true;
+
+  std::vector<std::uint32_t> uniques(entries.size());
+  for (size_t i = 0; auto [item, _] : entries)
+    uniques[i++] = item;
+
+  return uniques;
+}
+
+template <typename T>
+  requires(!std::same_as<T, std::uint32_t>)
+std::vector<std::uint32_t>
+getUnique(const std::vector<T> &data,
+          std::function<std::vector<std::uint32_t>(const T &)> extractor) {
+	std::vector<std::uint32_t> uniques{};
+	for(const T & elem : data) { 
+		auto elemUniques = getUnique(extractor(elem));
+		for(auto &elemUnique : elemUniques) 
+			uniques.emplace_back(elemUnique);
+	}
+
+	return getUnique(uniques);
+}
+
 template <RandomIterator TIt, ConvertibleFromIterator<TIt> TVal>
   requires Comparable<TVal>
 TIt lowerBound(

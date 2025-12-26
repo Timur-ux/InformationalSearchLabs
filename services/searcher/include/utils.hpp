@@ -7,36 +7,10 @@
 #include <cstdint>
 #include <functional>
 #include <vector>
+#include "algo.hpp"
 #pragma once
 
-inline std::vector<std::uint32_t>
-getUnique(const std::vector<std::uint32_t> &data) {
-  IR::Map<std::uint32_t, bool> entries;
-  for (auto &item : data)
-    entries[item] = true;
-
-  std::vector<std::uint32_t> uniques(entries.size());
-  for (size_t i = 0; auto [item, _] : entries)
-    uniques[i++] = item;
-
-  return uniques;
-}
-
-template <typename T>
-  requires(!std::same_as<T, std::uint32_t>)
-std::vector<std::uint32_t>
-getUnique(const std::vector<T> &data,
-          std::function<std::vector<std::uint32_t>(const T &)> extractor) {
-	std::vector<std::uint32_t> uniques{};
-	for(const T & elem : data) { 
-		auto elemUniques = getUnique(extractor(elem));
-		for(auto &elemUnique : elemUniques) 
-			uniques.emplace_back(elemUnique);
-	}
-
-	return getUnique(uniques);
-}
-
+using namespace IR::algo;
 template<Comparable T>
 IR::Vector<std::uint32_t> zString(const IR::Vector<T> &s) {
   int64_t l = 0, r = 0;

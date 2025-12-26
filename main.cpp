@@ -7,6 +7,7 @@
 #include <clocale>
 #include <cstring>
 #include <iostream>
+#include <utility>
 static inline size_t wstrlen(const wchar_t * s) {
 	size_t result = 0;
 	while(*s != 0) 
@@ -15,20 +16,18 @@ static inline size_t wstrlen(const wchar_t * s) {
 }
 
 int main() {
-	setlocale(LC_ALL, "");
-	static constexpr size_t nStrings = 6;
-	static constexpr const wchar_t *strings[nStrings] = {
-		L"Some",
-		L"Текст",
-		L"Длинная дорога",
-		L"Me",
-		L"I",
-		L"Docker desctop"
-	};
-	IR::Trie<wchar_t, unsigned int> *trie;
-		trie = new IR::Trie<wchar_t, unsigned int>;
-		for(size_t i = 0; i < nStrings; ++i) 
-			trie->insert({strings[i], wstrlen(strings[i])}, i);
-	trie->print(std::wcout);
-	std::cout << "----------------" << '\n';
+	auto db = IR::bplustree::FileBasedBPlusTreeFactory<int, int, IR::bplustree::SameKeyOrdering::AsInserted>(24).createTree();
+
+	for(size_t i = 0; i < 10000; ++i) 
+		db->insert(std::forward<int>(i), std::forward<int>(i));
+
+	int n;
+	while(std::cin >> n) {
+		auto cursor = db->find(n);
+		for(auto [key, value] : cursor) { 
+			std::cout << key << ' ' << value<< '\n';
+		}
+		
+	}
+		
 }

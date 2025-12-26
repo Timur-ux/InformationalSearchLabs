@@ -77,7 +77,7 @@ void Indexer::taskFunc() {
     IR::Vector<formats::bson::Document> docs{};
     for (int i = 0; i < batchSize_; ++i) {
       storages::mongo::WriteResult item = collection.FindAndModify(
-          MakeDoc("indexed", false), MakeDoc("indexed", true));
+          MakeDoc("indexed", false), MakeDoc("$set", MakeDoc("indexed", true)));
       if (item.MatchedCount() == 0)
         break;
 

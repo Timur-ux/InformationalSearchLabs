@@ -348,6 +348,12 @@ BPlusTree<TKey, TVal, TOrdering>::find(UKey &&lower_, UKey &&higher_) const {
 
   auto begin = node.keys.begin(), end = node.keys.end(),
        it = algo::lowerBound(begin, end, lower, cmp);
+	if (it == end) {
+		if (node.nextNodeId < 0)
+			return result;
+		node = nodeManager_->load(node.nextNodeId);
+		begin = node.keys.begin(), end = node.keys.end(), it = begin;
+	}
   while (cmpBorder(*it, higher)) {
     result.push_back(std::pair{it->first, node.values.at(it - begin)});
     ++it;
