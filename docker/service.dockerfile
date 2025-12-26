@@ -5,7 +5,7 @@ ARG servicePath
 ARG serviceName
 
 WORKDIR /code
-COPY  ../build/build-release/${servicePath}/${serviceName} .
+COPY  ../build/build-release/${servicePath}/${serviceName} ../docker/serviceStart.sh ./
 ENV serviceName=$serviceName
 
-ENTRYPOINT ./${serviceName}
+ENTRYPOINT ["./serviceStart.sh"]

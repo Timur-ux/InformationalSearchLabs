@@ -5,6 +5,7 @@ set(schemasPath ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 # src files and embed config file
 file(GLOB_RECURSE ${serviceName}_src LIST_DIRECTORIES FALSE ./src/*.cpp)
+file(GLOB_RECURSE ${serviceName}_tests_src LIST_DIRECTORIES FALSE ./tests/*.cpp)
 userver_embed_file(${serviceName}_config NAME ${configName} FILEPATH ${CMAKE_CURRENT_SOURCE_DIR}/static_config.yaml)
 
 # request response schemas autogeneration
@@ -43,6 +44,13 @@ userver_testsuite_add(
 	-rf
 	--service-source-dir=${CMAKE_CURRENT_SOURCE_DIR}
 )
+
+# unit tests
+add_executable(${serviceName}-unittest ${${serviceName}_tests_src})
+target_link_libraries(${serviceName}-unittest GTest::gtest_main ${serviceName}_lib)
+
+gtest_discover_tests(${serviceName}-unittest)
+add_test(NAME ${serviceName} COMMAND ${serviceName}-unittest WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 unset(schemasPath)
 unset(serviceName)

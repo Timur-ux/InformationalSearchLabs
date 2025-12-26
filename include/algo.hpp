@@ -5,6 +5,7 @@
 #include <cassert>
 #include <functional>
 #include <iterator>
+#include <string>
 #pragma once
 
 namespace IR::algo {
@@ -47,5 +48,13 @@ bool binarySearch(TIt first, TIt last, const TVal &value) {
  * @return pointer to stringified n or NULL if n < 0
  */
 const char * lltostring(long n);
+
+template <typename CharT>
+bool contains(CharT c, const CharT *s) {
+	for(const CharT * _c = s; *_c != 0; ++_c) 
+		if(*_c == c) 
+			return true;
+	return false;
+}
 } // namespace IR::algo
 #endif // !ALGO_HPP_

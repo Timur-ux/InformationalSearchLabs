@@ -48,9 +48,10 @@ userver_testsuite_add(
 )
 
 # unit tests
-add_executable(${serviceName}_unittest ${${serviceName}_tests_src})
-target_link_libraries(${serviceName}_unittest PRIVATE ${serviceName}_lib GTest::gtest_main)
-gtest_discover_tests(${serviceName}_unittest)
+add_executable(${serviceName}-unittest ${${serviceName}_tests_src})
+target_link_libraries(${serviceName}-unittest PRIVATE ${serviceName}_lib GTest::gtest_main)
+# gtest_discover_tests(${serviceName}-unittest)
+add_test(NAME ${serviceName} COMMAND ${serviceName}-unittest WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 unset(schemasPath)
 unset(serviceName)

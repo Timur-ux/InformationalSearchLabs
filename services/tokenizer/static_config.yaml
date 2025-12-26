@@ -14,12 +14,12 @@ components_manager:
     logging:
       loggers:
         default:
-          file_path: '/logs/token.log'
+          # file_path: '/logs/token.log'
+          file_path: '@stderr'
           level: debug
           overflow_behavior: discard
 
     tokenizer:
-      task_processor: fs-task-processor
 
     tokenize-handler:
       path: /tokenize

@@ -19,8 +19,8 @@ components_manager:
 
     indexer:
       task-processor: fs-task-processor
-      batch-size: 20 # quantity of documents indexed per request
-      batch-delay: 40 # in seconds
+      batch-size: 10 # quantity of documents indexed per request
+      batch-delay: 5 # in seconds
 
     mongo-index:
       # dbconnection: mongodb://localhost:27017/index # local tests

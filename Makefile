@@ -15,7 +15,7 @@ build-debug build-release: build-%: build cmake-%
 
 .PHONY: test-debug test-release
 test-debug test-release: test-%: build cmake-%
-	cmake --build ./build/build-$* -j $(NPROC) --target tests
+	cmake --build ./build/build-$* -j $(NPROC)
 	cd ./build/build-$* && ctest
 
 $(CONAN_TOOLCHAIN):

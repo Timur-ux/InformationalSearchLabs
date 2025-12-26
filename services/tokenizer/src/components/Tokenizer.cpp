@@ -1,5 +1,7 @@
 #include "components/Tokenizer.hpp"
 #include "exceptions/UndefinedToken.hpp"
+#include "stem/English.hpp"
+#include "stem/Russian.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -7,6 +9,7 @@
 #include <cstring>
 #include <cwchar>
 #include <filesystem>
+#include <memory>
 #include <random>
 #include <regex>
 #include <stdexcept>
@@ -18,6 +21,9 @@
 
 namespace SERVICE_NAMESPACE {
 Tokenizer::Tokenizer() {
+  stemmer_ = std::make_unique<RussianStemAction>();
+  stemmer_->insert(std::make_unique<EnglishStemAction>());
+
   static char randomPath[30];
   static std::random_device device;
   const char *storagePath = getenv("STORAGE_PATH");
@@ -27,10 +33,10 @@ Tokenizer::Tokenizer() {
       randomPath[i] = device() % 26 + 'a';
     randomPath[29] = 0;
     LOG_DEBUG() << "Environment variable [STORAGE_PATH] not set, so i use "
-                   "random folder in /tmp/ directory: "
-                << randomPath;
+                   "random folder in /tmp/ directory";
     storagePath = randomPath;
   }
+  LOG_DEBUG() << "STORAGE FOLDER: " << storagePath;
 
   storagePath_ = storagePath;
 
@@ -38,7 +44,10 @@ Tokenizer::Tokenizer() {
     load();
 }
 
-Tokenizer::~Tokenizer() { save(); }
+Tokenizer::~Tokenizer() { 
+	LOG_DEBUG() << "Saving tokenizer data";
+	save();
+}
 
 void Tokenizer::load() {
   forward_.deserialize((storagePath_ / "forward").c_str());
@@ -105,7 +114,11 @@ IR::Vector<std::uint32_t> Tokenizer::tokenize(const std::wstring &s) {
 
   IR::Vector<std::uint32_t> tokens;
   while (it != end) {
-    const auto &str = it->str();
+    auto str = it->str();
+
+    // do not tokenize tags
+    if (!(str.size() > 2 && str[0] == L'<' && str[str.size() - 1] == L'>'))
+      (*stemmer_)(str);
     size_t oldSize = forward_.size();
     std::uint32_t token = forward_.getOrInsert(str.data(), str.size(), oldSize);
     if (token == oldSize)
@@ -129,4 +142,5 @@ std::wstring Tokenizer::detokenize(const IR::Vector<std::uint32_t> &tokens) {
 }
 
 Tokenizer &TokenizerComponent::GetTokenizer() { return tokenizer_; }
+TokenizerComponent::~TokenizerComponent() { }
 } // namespace SERVICE_NAMESPACE
