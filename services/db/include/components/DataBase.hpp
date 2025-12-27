@@ -1,7 +1,7 @@
 #ifndef DATABASE_HPP_
 #define DATABASE_HPP_
-#include "BPlusTree.hpp"
 #include "Vector.hpp"
+#include "bplustree/BPlusTree.hpp"
 #include <cstdint>
 #include <memory>
 #include <string_view>

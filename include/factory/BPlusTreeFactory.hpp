@@ -1,8 +1,13 @@
 #ifndef B_PLUS_TREE_FACTORY_HPP_
 #define B_PLUS_TREE_FACTORY_HPP_
-#include "BPlusTree.hpp"
+#include "bplustree/BPlusTree.hpp"
+#include "bplustree/INodeCache.hpp"
+#include "bplustree/NodeManager/InMemory.hpp"
+#include "bplustree/NodeManager/FileBased.hpp"
+#include "bplustree/key_type.hpp"
 #include "concepts.hpp"
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <iostream>
 #include <memory>
@@ -44,6 +49,7 @@ class FileBasedBPlusTreeFactory
     : public IBPlusTreeFactory<TKey, TVal, TOrdering> {
   size_t nodeCapacity_;
   long rootId_ = -1;
+	size_t cacheCapacity_ = 1024;
   std::filesystem::path storagePath_ = "/tmp/";
 
   std::shared_ptr<FileBasedNodeManager<TKey, TVal, TOrdering>>
@@ -75,6 +81,12 @@ public:
                             std::filesystem::path storagePath, const char *name)
       : nodeCapacity_(nodeCapacity), storagePath_(storagePath) {
     storagePath_ /= name;
+  }
+
+  FileBasedBPlusTreeFactory(size_t nodeCapacity,
+                            std::filesystem::path storagePath, const char *name, size_t cacheCapacity)
+      : FileBasedBPlusTreeFactory(nodeCapacity, storagePath, name) {
+		cacheCapacity_ = cacheCapacity;
   }
 
   std::shared_ptr<INodeManager<TKey, TVal, TOrdering>>
@@ -118,16 +130,17 @@ FileBasedBPlusTreeFactory<TKey, TVal, TOrdering>::createNodeManager_() {
   using namespace std::filesystem;
 
   using NodeManager = FileBasedNodeManager<TKey, TVal, TOrdering>;
+	auto cache = std::make_shared<DefaultNodeCache<TKey, TVal, TOrdering>>(storagePath_, cacheCapacity_);
 
-  if (fs::create_directories(storagePath_))
+  if (create_directories(storagePath_))
     std::cerr << "Created new storage created at: " << storagePath_ << '\n';
   else
     std::cerr << "Using already existing storage at: " << storagePath_ << '\n';
 
-  fs::path schemaPath = storagePath_ / NodeManager::schemaName;
+  path schemaPath = storagePath_ / NodeManager::schemaName;
 
   std::shared_ptr<NodeManager> nodeManager;
-  if (fs::exists(schemaPath)) {
+  if (exists(schemaPath)) {
     std::cerr << "Found schema file for [" << storagePath_
               << "] storage. Node manager data will be loaded from it\n";
     FILE *file = fopen(schemaPath.c_str(), "rb");
@@ -139,11 +152,11 @@ FileBasedBPlusTreeFactory<TKey, TVal, TOrdering>::createNodeManager_() {
       throw std::runtime_error("Schema file is invalid");
     fclose(file);
 
-    nodeManager = std::make_shared<NodeManager>(storagePath_, schema);
+    nodeManager = std::make_shared<NodeManager>(storagePath_, schema, cache);
     rootId_ = schema.rootId;
   } else {
     std::cerr << "Schema not found, so i create clear node manager\n";
-    nodeManager = std::make_shared<NodeManager>(storagePath_);
+    nodeManager = std::make_shared<NodeManager>(storagePath_, cache);
   }
   return nodeManager;
 }

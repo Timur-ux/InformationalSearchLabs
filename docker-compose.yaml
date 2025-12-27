@@ -9,6 +9,7 @@ services:
         servicePath: services/db
     environment:
       STORAGE_PATH: /storage
+      CACHE_CAPACITY: 1024
     security_opt:
       - seccomp=unconfined
     volumes:

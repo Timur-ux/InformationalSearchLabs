@@ -1,7 +1,7 @@
-#include "BPlusTree.hpp"
 #include "factory/BPlusTreeFactory.hpp"
 #include "gtest/gtest.h"
 #include <gtest/gtest.h>
+#include <iostream>
 #include <random>
 
 typedef enum { InMemory, FileBased } TreeType;
@@ -44,11 +44,13 @@ TEST_P(BPlusTreeTestSuite, FindAll) {
 
   auto cursor = tree->find(-5, 10000);
 
-  for (int i = 0; auto [key, value] : cursor) {
+  int i;
+  for (i = 0; auto [key, value] : cursor) {
     ASSERT_EQ(key, i);
     ASSERT_EQ(value, 2 * i);
     ++i;
   }
+  ASSERT_EQ(i, 2000);
 }
 
 TEST_P(BPlusTreeTestSuite, FindPart) {
@@ -77,15 +79,15 @@ TEST(FileBasedBPlusTreeTestSuite, ConsistencyCheck) {
     storageName[i] = device() % 26 + 'A';
   storageName[30] = 0;
 
-	{
-		auto tree = TreeFactory(50, storagePath, storageName).createTree();
-		for(int i = 0; i <= 1000; ++i) 
-			tree->insert(i, i * 2);
-	}
+  {
+    auto tree = TreeFactory(50, storagePath, storageName).createTree();
+    for (int i = 0; i <= 1000; ++i)
+      tree->insert(i, i * 2);
+  }
 
-	auto tree = TreeFactory(50, storagePath, storageName).createTree();
-	auto cursor = tree->find(0, 1000);
-	
+  auto tree = TreeFactory(50, storagePath, storageName).createTree();
+  auto cursor = tree->find(0, 1000);
+
   auto it = cursor.begin(), end = cursor.end();
   for (int i = 0; i <= 1000; ++i) {
     ASSERT_NE(it, end);
@@ -93,6 +95,4 @@ TEST(FileBasedBPlusTreeTestSuite, ConsistencyCheck) {
     ASSERT_EQ(it->second, 2 * i);
     ++it;
   }
-	
-		
 }
