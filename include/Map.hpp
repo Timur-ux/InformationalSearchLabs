@@ -3,6 +3,7 @@
 
 #include <cassert>
 #include <cstddef>
+#include <format>
 #include <iostream>
 #include <ostream>
 #include <stdexcept>
@@ -24,12 +25,12 @@ Balance &operator-=(Balance &balance, int diff);
 template <Comparable TKey, Defaulted TVal> class Map {
 
   struct NodeData {
-    const TKey key;
+    TKey key;
     TVal value;
 
     NodeData() = default;
     NodeData(const TKey &k) : key(k) {}
-		NodeData(const TKey &k, const TVal & val) : key(k), value(val) {}
+    NodeData(const TKey &k, const TVal &val) : key(k), value(val) {}
   };
 
   struct Node : public NodeData {
@@ -89,13 +90,14 @@ template <Comparable TKey, Defaulted TVal> class Map {
     Node(const TKey &k, Node *p) : NodeData(k), parent(p) {}
 
     void print(std::ostream &os, size_t depth = 0) const;
-
-    ~Node() {
+    void destroyRecurse() {
       if (left)
-        delete left;
+        left->destroyRecurse(), delete left;
       if (right)
-        delete right;
+        right->destroyRecurse(), delete right;
     }
+
+    ~Node() {}
   };
 
   size_t size_ = 0;
@@ -103,13 +105,18 @@ template <Comparable TKey, Defaulted TVal> class Map {
 
   TVal &findOrInsert(const TKey &key);
   const TVal &find(const TKey &key) const;
-  void rebalance(Node *node);
+  void rebalanceInsert(Node *node);
+  void rebalanceRemove(Node *node);
 
   void rotateLeft(Node *node);
   void rotateRight(Node *node);
 
-  void balanceLeft(Node *node);
-  void balanceRight(Node *node);
+  void balanceLeft(Node *node, bool isDelete = false);
+  void balanceRight(Node *node, bool isDelete = false);
+
+  void removeNode(Node *node);
+
+  long validate(Node *node, int depth = 0);
 
 public:
   Map() = default;
@@ -117,8 +124,7 @@ public:
     if (other.size() > 0)
       root_ = new Node(*other.root_), size_ = other.size_;
   }
-  Map(Map &&other) noexcept
-      : root_(other.root_), size_(other.size_) {
+  Map(Map &&other) noexcept : root_(other.root_), size_(other.size_) {
     other.root_ = nullptr;
     other.size_ = 0;
   }
@@ -134,7 +140,7 @@ public:
     if (this == &other)
       return *this;
     if (root_)
-      delete root_;
+      root_->destroyRecurse(), delete root_;
     root_ = other.root_;
     size_ = other.size_;
 
@@ -151,6 +157,7 @@ public:
 
   void print(std::ostream &os) const;
   bool contains(const TKey &key) const;
+  void remove(const TKey &key);
 
   template <typename TData> class MapIterator;
 
@@ -256,7 +263,7 @@ public:
 
   ~Map() {
     if (root_)
-      delete root_;
+      root_->destroyRecurse(), delete root_;
   }
 };
 
@@ -301,7 +308,7 @@ TVal &Map<TKey, TVal>::findOrInsert(const TKey &key) {
     p->right = node;
   ++size_;
 
-  rebalance(node);
+  rebalanceInsert(node);
   while (root_->parent != nullptr)
     root_ = root_->parent;
 
@@ -311,6 +318,9 @@ TVal &Map<TKey, TVal>::findOrInsert(const TKey &key) {
 template <Comparable TKey, Defaulted TVal>
 void Map<TKey, TVal>::insert(const TKey &key, const TVal &value) {
   findOrInsert(key) = value;
+#ifdef DEBUG
+  validate(root_);
+#endif // !DEBUG
 }
 
 template <Comparable TKey, Defaulted TVal>
@@ -324,7 +334,7 @@ const TVal &Map<TKey, TVal>::operator[](const TKey &key) const {
 }
 
 template <Comparable TKey, Defaulted TVal>
-void Map<TKey, TVal>::rebalance(Node *node) {
+void Map<TKey, TVal>::rebalanceInsert(Node *node) {
   if (!node || !node->parent)
     return;
 
@@ -339,7 +349,7 @@ void Map<TKey, TVal>::rebalance(Node *node) {
     return;
   case L:
   case R:
-    return rebalance(parent);
+    return rebalanceInsert(parent);
   case LL:
     return balanceLeft(parent);
   case RR:
@@ -350,12 +360,14 @@ void Map<TKey, TVal>::rebalance(Node *node) {
 }
 
 template <Comparable TKey, Defaulted TVal>
-void Map<TKey, TVal>::balanceLeft(Node *node) {
+void Map<TKey, TVal>::balanceLeft(Node *node, bool isDelete) {
   Node *left = node->left;
-  if (left->balance == L) {
+  if (left->balance == L || (isDelete && left->balance == Balanced)) {
     rotateRight(node);
-    node->balance = Balanced;
-    left->balance = Balanced;
+    if (isDelete && left->balance == Balanced)
+      node->balance = L, left->balance = R;
+    else
+      node->balance = Balanced, left->balance = Balanced;
     return;
   }
   // left->balance == R
@@ -372,8 +384,8 @@ void Map<TKey, TVal>::balanceLeft(Node *node) {
   case R:
     left->balance = L;
     break;
-	default:
-		break;
+  default:
+    break;
   }
 
   leftRight->balance = Balanced;
@@ -381,12 +393,14 @@ void Map<TKey, TVal>::balanceLeft(Node *node) {
 }
 
 template <Comparable TKey, Defaulted TVal>
-void Map<TKey, TVal>::balanceRight(Node *node) {
+void Map<TKey, TVal>::balanceRight(Node *node, bool isDelete) {
   Node *right = node->right;
-  if (right->balance == R) {
+  if (right->balance == R || (isDelete && right->balance == Balanced)) {
     rotateLeft(node);
-    node->balance = Balanced;
-    right->balance = Balanced;
+    if (isDelete && right->balance == Balanced)
+      node->balance = R, right->balance = L;
+    else
+      node->balance = Balanced, right->balance = Balanced;
     return;
   }
   // right->balance == L
@@ -403,8 +417,8 @@ void Map<TKey, TVal>::balanceRight(Node *node) {
   case R:
     node->balance = L;
     break;
-	default:
-		break;
+  default:
+    break;
   }
 
   rightLeft->balance = Balanced;
@@ -432,6 +446,8 @@ void Map<TKey, TVal>::rotateLeft(Node *node) {
   if (right)
     right->left = node;
   node->parent = right;
+  while (root_->parent != nullptr)
+    root_ = root_->parent;
 }
 
 template <Comparable TKey, Defaulted TVal>
@@ -455,6 +471,8 @@ void Map<TKey, TVal>::rotateRight(Node *node) {
   if (left)
     left->right = node;
   node->parent = left;
+  while (root_->parent != nullptr)
+    root_ = root_->parent;
 }
 
 template <Comparable TKey, Defaulted TVal>
@@ -478,7 +496,13 @@ void Map<TKey, TVal>::Node::print(std::ostream &os, size_t depth) const {
   size_t d = depth;
   while (d-- > 0)
     os << '\t';
-  os << this->key << '\n';
+  os << this->key << ' '
+     << (balance == Balanced ? 'B'
+         : balance == L      ? 'l'
+         : balance == R      ? 'r'
+         : balance == LL     ? 'L'
+                             : 'R')
+     << '\n';
 
   if (left)
     left->print(os, depth + 1);
@@ -497,5 +521,118 @@ bool Map<TKey, TVal>::contains(const TKey &key) const {
   return (node != nullptr);
 }
 
+template <Comparable TKey, Defaulted TVal>
+void Map<TKey, TVal>::remove(const TKey &key) {
+  Node *node = root_;
+  while (node != nullptr && node->key != key) {
+    if (key < node->key)
+      node = node->left;
+    else
+      node = node->right;
+  }
+  if (!node)
+    return;
+
+  --size_;
+#ifdef DEBUG
+  removeNode(node);
+  try {
+    validate(root_);
+  } catch (...) {
+    std::cerr << "Catched error while removing: " << key << '\n';
+    print(std::cerr);
+    throw;
+  }
+  return;
+#else
+  return removeNode(node);
+#endif // !DEBUG
+}
+
+template <Comparable TKey, Defaulted TVal>
+void Map<TKey, TVal>::removeNode(Node *node) {
+  Node *parent = node->parent;
+  // case 1: no childs
+  if (!node->left && !node->right) {
+    if (node == root_) {
+      delete node;
+      return root_ = nullptr, void();
+    }
+    if (parent->left == node)
+      parent->left = nullptr, parent->balance += 1;
+    else
+      parent->right = nullptr, parent->balance -= 1;
+    delete node;
+    return rebalanceRemove(parent);
+  } else if (!node->left) { // case 2: only right
+    Node *right = node->right;
+    if (parent->left == node)
+      parent->left = right, parent->balance += 1;
+    else
+      parent->right = right, parent->balance -= 1;
+    right->parent = parent;
+    delete node;
+    return rebalanceRemove(parent);
+  } else if (!node->right) { // case 3: only left
+    Node *left = node->left;
+    if (parent->left == node)
+      parent->left = left, parent->balance += 1;
+    else
+      parent->right = left, parent->balance -= 1;
+    left->parent = parent;
+    delete node;
+    return rebalanceRemove(parent);
+  } else { // case 4: both childs
+    Node *right = node->right;
+    while (right->left)
+      right = right->left;
+
+    node->key = std::move(right->key);
+    node->value = std::move(right->value);
+    removeNode(right);
+  }
+}
+
+template <Comparable TKey, Defaulted TVal>
+void Map<TKey, TVal>::rebalanceRemove(Node *node) {
+  if (!node)
+    return;
+
+  Node *parent = node->parent;
+  if (node->balance == L || node->balance == R)
+    return;
+
+  bool isNodeLeftSided = (parent && parent->left == node);
+  bool needRebalance = true;
+  if (node->balance == LL)
+    needRebalance = node->left && node->left->balance != Balanced,
+    balanceLeft(node, true);
+  else if (node->balance == RR)
+    needRebalance = node->right && node->right->balance != Balanced,
+    balanceRight(node, true);
+
+  if (!parent || !needRebalance)
+    return;
+		
+  if (isNodeLeftSided)
+    parent->balance += 1;
+  else
+    parent->balance -= 1;
+
+  return rebalanceRemove(parent);
+}
+
+template <Comparable TKey, Defaulted TVal>
+long Map<TKey, TVal>::validate(Node *node, int depth) {
+  if (!node)
+    return 0;
+  long leftH = validate(node->left, depth + 1),
+       rightH = validate(node->right, depth + 1);
+  if (std::abs(leftH - rightH) >= 2 || (rightH - leftH != node->balance))
+    throw std::runtime_error(std::format(
+        "Map tree invalid! Invalidation found on depth: {}, node key: {}",
+        depth, node->key));
+  return std::max(leftH, rightH) + 1;
+}
 } // namespace IR
 #endif // !MAP_HPP_

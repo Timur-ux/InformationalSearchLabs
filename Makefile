@@ -13,6 +13,18 @@ build:
 build-debug build-release: build-%: build cmake-% 
 	cmake --build ./build/build-$* -j $(NPROC) 
 
+.PHONY: main-test
+main-test: build cmake-debug
+	cmake --build ./build/build-debug -j $(NPROC) --target=tests
+
+
+.PHONY: service-only
+service-only: build cmake-release
+	cmake --build ./build/build-release -j $(NPROC) --target=dbService
+	cmake --build ./build/build-release -j $(NPROC) --target=tokenizerService
+	cmake --build ./build/build-release -j $(NPROC) --target=indexService
+	cmake --build ./build/build-release -j $(NPROC) --target=searchService
+
 .PHONY: test-debug test-release
 test-debug test-release: test-%: build cmake-%
 	cmake --build ./build/build-$* -j $(NPROC)
