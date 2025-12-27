@@ -1,6 +1,7 @@
 #include "handlers/insert.hpp"
 #include "components/DataBase.hpp"
 #include "exceptions/KeyNotFound.hpp"
+#include "metrics.hpp"
 #include "schemas/insert.hpp"
 #include <sys/types.h>
 #include <userver/components/component_context.hpp>
@@ -20,6 +21,7 @@ InsertHandler::HandleRequestJsonThrow(const HttpRequest &request,
                                       RequestContext &context) const {
   request.GetHttpResponse().SetContentType(
       http::content_type::kApplicationJson);
+	resetMetrics();
 
   auto requestBody = requestJson.As<insert::InsertRequestBody>();
 
@@ -31,6 +33,7 @@ InsertHandler::HandleRequestJsonThrow(const HttpRequest &request,
   db_.insert(*requestBody.id, IR::VectorView<std::uint32_t>{
                                                    requestBody.tokens->data(),
                                                    requestBody.tokens->size()});
+	LOG_DEBUG() << "CACHE USAGE: " << cacheUsage() << " NODE LOAD: " << nodeLoadUsage() << " NODE SAVE: " << nodeSaveUsage();
 
   insert::InsertResponseBody responseBody{"success"};
 

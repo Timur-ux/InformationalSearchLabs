@@ -5,6 +5,7 @@
 #include "Queue.hpp"
 #include "bplustree/Node.hpp"
 #include "concepts.hpp"
+#include "metrics.hpp"
 #include <filesystem>
 #include <iostream>
 #include <optional>
@@ -43,14 +44,17 @@ public:
 
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 class DefaultNodeCache : public INodeCache<TKey, TVal, TOrdering> {
-	void print(std::ostream & os) const {
-		os << "------------\n";
-		os << "Capacity: " << capacity_ << "; storagePath: " << storagePath_ << "; activeNodes size: " << activeNodes_.size() << "; storage size: " << storage_.size() << "; history size: " << history_.size() << '\n';
-		for(const auto &item : storage_) 
-			os << item.timePoint << ' ' << item.node.id << '\n';
-		os << "------------\n";
-		
-	}
+  void print(std::ostream &os) const {
+    os << "------------\n";
+    os << "Capacity: " << capacity_ << "; storagePath: " << storagePath_
+       << "; activeNodes size: " << activeNodes_.size()
+       << "; storage size: " << storage_.size()
+       << "; history size: " << history_.size() << '\n';
+    for (const auto &item : storage_)
+      os << item.timePoint << ' ' << item.node.id << '\n';
+    os << "------------\n";
+  }
+
 public:
   using node_type = impl::Node<TKey, TVal, TOrdering>;
   size_t currentTimePoint_ = 0;
@@ -94,6 +98,7 @@ DefaultNodeCache<TKey, TVal, TOrdering>::node_type
 DefaultNodeCache<TKey, TVal, TOrdering>::get(long nodeId) {
   if (!contains(nodeId))
     throw std::logic_error("Can't get node from cache that not exists in it");
+	incrementCacheUsage();
 
   auto it = *activeNodes_[nodeId];
   history_.push(CachingHistory{currentTimePoint_, nodeId});
@@ -105,13 +110,16 @@ template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 void DefaultNodeCache<TKey, TVal, TOrdering>::update(const node_type &node) {
   if (!contains(node.id))
     insert(node);
+  else
+    incrementCacheUsage();
   auto it = *activeNodes_[node.id];
   it->timePoint = currentTimePoint_++;
-	it->node = node;
+  it->node = node;
 }
 
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 void DefaultNodeCache<TKey, TVal, TOrdering>::insert(const node_type &node) {
+  incrementCacheUsage();
   if (full()) { // find first not changed node
     auto oldest = storage_.end();
     do {
@@ -135,7 +143,7 @@ void DefaultNodeCache<TKey, TVal, TOrdering>::insert(const node_type &node) {
         if (it->timePoint < oldest->timePoint)
           oldest = it;
     }
-		node_type::save(storagePath_, oldest->node);
+    node_type::save(storagePath_, oldest->node);
     activeNodes_.remove(oldest->node.id);
     storage_.remove(oldest);
   }

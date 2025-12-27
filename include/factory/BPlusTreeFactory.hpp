@@ -131,6 +131,7 @@ FileBasedBPlusTreeFactory<TKey, TVal, TOrdering>::createNodeManager_() {
 
   using NodeManager = FileBasedNodeManager<TKey, TVal, TOrdering>;
 	auto cache = std::make_shared<DefaultNodeCache<TKey, TVal, TOrdering>>(storagePath_, cacheCapacity_);
+	// auto cache = std::make_shared<NullNodeCache<TKey, TVal, TOrdering>>();
 
   if (create_directories(storagePath_))
     std::cerr << "Created new storage created at: " << storagePath_ << '\n';

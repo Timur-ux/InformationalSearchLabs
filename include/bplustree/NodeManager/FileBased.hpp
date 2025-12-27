@@ -6,6 +6,7 @@
 #include "bplustree/fwd.hpp"
 #include "concepts.hpp"
 #include "event.hpp"
+#include "metrics.hpp"
 #include <filesystem>
 #pragma once
 namespace IR::bplustree {
@@ -127,12 +128,10 @@ FileBasedNodeManager<TKey, TVal, TOrdering>::load(long id) {
 
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 void FileBasedNodeManager<TKey, TVal, TOrdering>::save(const Node &node) {
-  if (cache_->contains(node.id))
-    cache_->update(node);
-  else if (!cache_->full())
-    cache_->insert(node);
-
-  Node::save(storagePath_, node);
+	if(cache_->contains(node.id)) 
+		cache_->update(node);
+	else
+		Node::save(storagePath_, node);
 }
 } // namespace IR::bplustree
 #endif // !BPLUSTREE_FILE_BASED_NODE_MANAGER_HPP_

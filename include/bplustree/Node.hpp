@@ -5,6 +5,7 @@
 #include "bplustree/fwd.hpp"
 #include "bplustree/key_type.hpp"
 #include "concepts.hpp"
+#include "metrics.hpp"
 #include <filesystem>
 #pragma once
 namespace IR::bplustree::impl {
@@ -87,6 +88,7 @@ struct NodeSchema {
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 Node<TKey, TVal, TOrdering>
 Node<TKey, TVal, TOrdering>::load(std::filesystem::path storage, long id) {
+	incrementNodeLoadUsage();
   std::filesystem::path nodePath = storage / algo::lltostring(id);
   if (!std::filesystem::exists(nodePath))
     throw std::invalid_argument("Node with requested id doesn't exist");
@@ -150,6 +152,7 @@ Node<TKey, TVal, TOrdering>::load(std::filesystem::path storage, long id) {
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
 void Node<TKey, TVal, TOrdering>::save(
     std::filesystem::path storage, const Node<TKey, TVal, TOrdering> &node) {
+	incrementNodeSaveUsage();
   std::filesystem::path nodePath = storage / algo::lltostring(node.id);
   NodeSchema nodeSchema{node.id,          node.level,        node.isLeaf,
                         node.keys.size(), node.links.size(), node.values.size(),
