@@ -88,11 +88,11 @@ class BPlusTree {
   mutable std::shared_mutex mutex_;
 
   // Dispatch rootId and size between handlers when destroying
-  event::Event<long> onDestroy_;
+  event::Event<long> onDestroy_, onRootChanged_;
   friend FileBasedNodeManager<TKey, TVal, TOrdering>;
 
 public:
-  event::IEvent<long> &onDestroy;
+  event::IEvent<long> &onDestroy, &onRootChanged;
   class Cursor {
     friend BPlusTree;
     using values_type = Vector<std::pair<TKey, TVal>>;
@@ -113,11 +113,11 @@ public:
   };
 
   BPlusTree(std::shared_ptr<NodeManager_type> nodeManager, long rootId = -1)
-      : onDestroy(onDestroy_), nodeManager_(nodeManager), rootId_(rootId) {}
+      : onDestroy(onDestroy_), onRootChanged(onRootChanged_), nodeManager_(nodeManager), rootId_(rootId) {}
 
   BPlusTree(std::shared_ptr<NodeManager_type> nodeManager, long rootId = -1,
             size_t nodeCapacity = 1024)
-      : onDestroy(onDestroy_), nodeManager_(nodeManager), rootId_(rootId),
+      : onDestroy(onDestroy_),onRootChanged(onRootChanged_), nodeManager_(nodeManager), rootId_(rootId),
         nodeCapacity_(nodeCapacity) {
     if ((nodeCapacity_ & 1) || nodeCapacity_ <= 2)
       throw std::invalid_argument("Only even node capacity higher 2 allowed");

@@ -25,9 +25,9 @@ public:
 private:
   using Node = impl::Node<TKey, TVal, TOrdering>;
   struct SchemaUpdater : public event::IEventHandler<long> {
-    Schema *schema;
-    SchemaUpdater(Schema *schema) : schema(schema) {}
-    void operator()(long &&rootId) override final { schema->rootId = rootId; }
+    FileBasedNodeManager<TKey, TVal, TOrdering> & root_;
+    SchemaUpdater(FileBasedNodeManager<TKey, TVal, TOrdering> & root) : root_(root) {}
+    void operator()(long &&rootId) override final { root_.schema_.rootId = rootId; root_.flush(); }
   };
 
   fs::path storagePath_;
@@ -36,12 +36,13 @@ private:
   std::shared_ptr<INodeCache<TKey, TVal, TOrdering>> cache_ =
       std::make_shared<NullNodeCache<TKey, TVal, TOrdering>>();
 
+	void flush();
 public:
   FileBasedNodeManager(
       const fs::path &storagePath,
       std::shared_ptr<INodeCache<TKey, TVal, TOrdering>> cache = nullptr)
       : storagePath_(storagePath),
-        schemaUpdater_(std::make_shared<SchemaUpdater>(&schema_)) {
+        schemaUpdater_(std::make_shared<SchemaUpdater>(*this)) {
     if (cache)
       cache_ = cache;
   }
@@ -71,10 +72,11 @@ void FileBasedNodeManager<TKey, TVal, TOrdering>::bindTo(
     std::shared_ptr<BPlusTree<TKey, TVal, TOrdering>> tree) {
   tree->onDestroy += schemaUpdater_;
   tree->rootId_ = schema_.rootId;
+	tree->onRootChanged += schemaUpdater_;
 }
 
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
-FileBasedNodeManager<TKey, TVal, TOrdering>::~FileBasedNodeManager() {
+void FileBasedNodeManager<TKey, TVal, TOrdering>::flush() {
   if (cache_)
     cache_->flush(storagePath_);
 
@@ -87,6 +89,10 @@ FileBasedNodeManager<TKey, TVal, TOrdering>::~FileBasedNodeManager() {
 
   if (file)
     fclose(file);
+}
+template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>
+FileBasedNodeManager<TKey, TVal, TOrdering>::~FileBasedNodeManager() {
+	flush();
 }
 
 template <Comparable TKey, typename TVal, SameKeyOrdering TOrdering>

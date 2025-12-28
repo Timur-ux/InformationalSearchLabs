@@ -17,6 +17,7 @@ services:
       - "${STORAGE:-/tmp}/db:/storage"
     networks:
       - backend
+    restart: always
 
   tokenizer:
     container_name: tokenizer
@@ -34,6 +35,7 @@ services:
       - "${STORAGE:-/tmp}/logs:/logs"
     networks:
       - backend
+    restart: always
 
   indexer:
     container_name: indexer
@@ -55,6 +57,7 @@ services:
       - mongo
     networks:
       - backend
+    restart: always
 
   searcher:
     container_name: searcher
@@ -79,6 +82,7 @@ services:
     networks:
       - backend
       - frontend
+    restart: always
 
   crawler:
     container_name: crawler
@@ -94,6 +98,7 @@ services:
       - mongo
     networks:
       - backend
+    restart: always
 
   mongo:
     container_name: mongo
@@ -105,6 +110,7 @@ services:
       - "./cfg/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro"
     networks:
       - backend
+    restart: always
 
   web:
     build:
@@ -115,6 +121,7 @@ services:
       - searcher
     networks:
       - frontend
+    restart: always
 
 networks:
   backend:
