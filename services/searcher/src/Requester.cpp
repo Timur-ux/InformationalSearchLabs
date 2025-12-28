@@ -165,8 +165,8 @@ Requester::getPagesData(storages::mongo::PoolPtr mongo,
   for (const auto &doc : cursor) {
 		LOG_DEBUG() << "DOC: " << formats::bson::ToBinaryString(doc).ToString();
     pages.emplace_back(doc["_id"].As<std::uint32_t>(),
-                       pageData::PageData{doc["title"].As<std::string>(),
-                                          doc["url"].As<std::string>()});
+                       pageData::PageData{doc["title"].As<std::string>({}),
+                                          doc["url"].As<std::string>({})});
 	}
 
 	return pages;
