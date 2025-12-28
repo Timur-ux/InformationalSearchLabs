@@ -5,6 +5,7 @@
 #include "schemas/tokenize.hpp"
 #include <sstream>
 #include <userver/formats/bson.hpp>
+#include <userver/formats/bson/binary.hpp>
 #include <userver/formats/bson/inline.hpp>
 #include <userver/formats/json/serialize.hpp>
 #include <userver/formats/json/value_builder.hpp>
@@ -161,10 +162,12 @@ Requester::getPagesData(storages::mongo::PoolPtr mongo,
   if (!cursor)
     return {};
   std::vector<std::pair<std::uint32_t, pageData::PageData>> pages{};
-  for (const auto &doc : cursor)
+  for (const auto &doc : cursor) {
+		LOG_DEBUG() << "DOC: " << formats::bson::ToBinaryString(doc).ToString();
     pages.emplace_back(doc["_id"].As<std::uint32_t>(),
                        pageData::PageData{doc["title"].As<std::string>(),
                                           doc["url"].As<std::string>()});
+	}
 
 	return pages;
 }
