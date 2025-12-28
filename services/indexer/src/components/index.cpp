@@ -3,7 +3,9 @@
 #include "schemas/insert.hpp"
 #include "schemas/tokenize.hpp"
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
+#include <exception>
 #include <format>
 #include <stdexcept>
 #include <userver/components/component_base.hpp>
@@ -72,37 +74,59 @@ void Indexer::taskFunc() {
     }
 
     LOG_DEBUG() << "Fetching " << batchSize_ << " pages needs to index...";
-    auto collection = pool_->GetCollection("ParsedDocuments");
-
     IR::Vector<formats::bson::Document> docs{};
-    for (int i = 0; i < batchSize_; ++i) {
-      storages::mongo::WriteResult item = collection.FindAndModify(
-          MakeDoc("indexed", false), MakeDoc("$set", MakeDoc("indexed", true)));
-      if (item.MatchedCount() == 0)
-        break;
+    try {
+      auto collection = pool_->GetCollection("ParsedDocuments");
 
-      auto errors = item.ServerErrors();
-      if (!errors.empty()) {
-        for (const auto &[id, error] : errors)
-          LOG_WARNING() << "Error while performing FindAndModify op. id: " << id
-                        << "; Error: " << error.Message();
-        break;
+      for (int i = 0; i < batchSize_; ++i) {
+        storages::mongo::WriteResult item =
+            collection.FindAndModify(MakeDoc("indexed", false),
+                                     MakeDoc("$set", MakeDoc("indexed", true)));
+        if (item.MatchedCount() == 0)
+          break;
+
+        auto errors = item.ServerErrors();
+        if (!errors.empty()) {
+          for (const auto &[id, error] : errors)
+            LOG_WARNING() << "Error while performing FindAndModify op. id: "
+                          << id << "; Error: " << error.Message();
+          break;
+        }
+        auto doc = item.FoundDocument();
+        if (!doc.has_value()) {
+          LOG_WARNING() << "Item found but doc have no value";
+          break;
+        }
+
+        docs.push_back(*doc);
       }
-			auto doc = item.FoundDocument();
-			if(!doc.has_value()) {
-				LOG_WARNING() << "Item found but doc have no value";
-				break;
-			}
-				
-			docs.push_back(*doc);
+    } catch (std::exception &e) {
+      LOG_ERROR() << "Error was occured while fetching pages from mongo, stop "
+                     "fetching. Error: "
+                  << e.what();
+    } catch (...) {
+      LOG_CRITICAL()
+          << "Undefined error was occured while fetching pages from mongo";
+      throw;
     }
     LOG_DEBUG() << "Found " << docs.size() << "/" << batchSize_
                 << " documents, updating...";
-    for (auto &doc : docs)
-      indexPage(doc);
+    for (auto &doc : docs) {
+      try {
+        indexPage(doc);
+      } catch (std::exception &e) {
+        LOG_ERROR() << "Error was occured while indexng page, "
+                       "skip this page indexing. Error: "
+                    << e.what();
+      } catch (...) {
+        LOG_CRITICAL() << "Undefined error was occured while indexng page";
+        throw;
+      }
+    }
     LOG_DEBUG() << "Updated " << docs.size() << " pages";
   }
 }
+
 void Indexer::indexPage(formats::bson::Document doc) const {
   auto transaction = pool_->GetCollection("ParsedDocuments");
   using formats::bson::MakeDoc;

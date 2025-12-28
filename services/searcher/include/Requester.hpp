@@ -13,7 +13,7 @@ using namespace userver;
 class Requester {
   const char *tokenizeServiceAddr_;
   const char *dbServiceAddr_;
-	const unsigned long kTimeout_ms = 10000;
+	const unsigned long kTimeout_ms = 60000;
 
   Requester();
 
