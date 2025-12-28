@@ -20,6 +20,7 @@
 #include <userver/http/content_type.hpp>
 #include <userver/http/http_version.hpp>
 #include <userver/logging/log.hpp>
+#include <userver/storages/mongo/options.hpp>
 #include <userver/storages/mongo/write_result.hpp>
 #include <userver/utils/async.hpp>
 #include <userver/yaml_config/merge_schemas.hpp>
@@ -75,31 +76,13 @@ void Indexer::taskFunc() {
 
     LOG_DEBUG() << "Fetching " << batchSize_ << " pages needs to index...";
     IR::Vector<formats::bson::Document> docs{};
+    auto limit = storages::mongo::options::Limit(batchSize_);
     try {
       auto collection = pool_->GetCollection("ParsedDocuments");
 
-      for (int i = 0; i < batchSize_; ++i) {
-        storages::mongo::WriteResult item =
-            collection.FindAndModify(MakeDoc("indexed", false),
-                                     MakeDoc("$set", MakeDoc("indexed", true)));
-        if (item.MatchedCount() == 0)
-          break;
-
-        auto errors = item.ServerErrors();
-        if (!errors.empty()) {
-          for (const auto &[id, error] : errors)
-            LOG_WARNING() << "Error while performing FindAndModify op. id: "
-                          << id << "; Error: " << error.Message();
-          break;
-        }
-        auto doc = item.FoundDocument();
-        if (!doc.has_value()) {
-          LOG_WARNING() << "Item found but doc have no value";
-          break;
-        }
-
-        docs.push_back(*doc);
-      }
+      auto items = collection.Find(MakeDoc("indexed", false), limit);
+      for (auto doc : items)
+        docs.push_back(doc);
     } catch (std::exception &e) {
       LOG_ERROR() << "Error was occured while fetching pages from mongo, stop "
                      "fetching. Error: "
@@ -138,6 +121,16 @@ void Indexer::indexPage(formats::bson::Document doc) const {
   LOG_DEBUG() << "Page with id: " << pageId
               << " have raw content length: " << content.size()
               << " and tokens amount: " << tokens.size();
+  auto result = transaction.FindAndModify(
+      MakeDoc("_id", pageId), MakeDoc("$set", MakeDoc("indexed", true)));
+  auto serverErrors = result.ServerErrors();
+  if (!serverErrors.empty())
+    LOG_ERROR() << "Mongo server errors while updating page with id " << pageId
+                << ": " << serverErrors.size();
+  auto mongoErrors = result.WriteConcernErrors();
+  if (!mongoErrors.empty())
+    LOG_ERROR() << "Mongo errors while updating page with id " << pageId << ": "
+                << serverErrors.size();
 }
 
 std::vector<std::uint32_t> Indexer::tokenize(std::string data) const {
