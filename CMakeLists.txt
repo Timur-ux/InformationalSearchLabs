@@ -67,3 +67,9 @@ add_subdirectory("./services/db/")
 add_subdirectory("./services/tokenizer/")
 add_subdirectory("./services/indexer/")
 add_subdirectory("./services/searcher/")
+
+# -----------
+# |  Utils  |
+# -----------
+
+add_subdirectory("./utils/")

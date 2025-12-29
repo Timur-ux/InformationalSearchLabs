@@ -2,8 +2,8 @@
 #define B_PLUS_TREE_FACTORY_HPP_
 #include "bplustree/BPlusTree.hpp"
 #include "bplustree/INodeCache.hpp"
-#include "bplustree/NodeManager/InMemory.hpp"
 #include "bplustree/NodeManager/FileBased.hpp"
+#include "bplustree/NodeManager/InMemory.hpp"
 #include "bplustree/key_type.hpp"
 #include "concepts.hpp"
 #include <cstdio>
@@ -49,7 +49,7 @@ class FileBasedBPlusTreeFactory
     : public IBPlusTreeFactory<TKey, TVal, TOrdering> {
   size_t nodeCapacity_;
   long rootId_ = -1;
-	size_t cacheCapacity_ = 1024;
+  size_t cacheCapacity_ = 1024;
   std::filesystem::path storagePath_ = "/tmp/";
 
   std::shared_ptr<FileBasedNodeManager<TKey, TVal, TOrdering>>
@@ -84,9 +84,10 @@ public:
   }
 
   FileBasedBPlusTreeFactory(size_t nodeCapacity,
-                            std::filesystem::path storagePath, const char *name, size_t cacheCapacity)
+                            std::filesystem::path storagePath, const char *name,
+                            size_t cacheCapacity)
       : FileBasedBPlusTreeFactory(nodeCapacity, storagePath, name) {
-		cacheCapacity_ = cacheCapacity;
+    cacheCapacity_ = cacheCapacity;
   }
 
   std::shared_ptr<INodeManager<TKey, TVal, TOrdering>>
@@ -130,8 +131,12 @@ FileBasedBPlusTreeFactory<TKey, TVal, TOrdering>::createNodeManager_() {
   using namespace std::filesystem;
 
   using NodeManager = FileBasedNodeManager<TKey, TVal, TOrdering>;
-	auto cache = std::make_shared<DefaultNodeCache<TKey, TVal, TOrdering>>(storagePath_, cacheCapacity_);
-	// auto cache = std::make_shared<NullNodeCache<TKey, TVal, TOrdering>>();
+  std::shared_ptr<INodeCache<TKey, TVal, TOrdering>> cache = nullptr;
+  if (cacheCapacity_ > 0)
+    cache = std::make_shared<DefaultNodeCache<TKey, TVal, TOrdering>>(
+        storagePath_, cacheCapacity_);
+  else
+    cache = std::make_shared<NullNodeCache<TKey, TVal, TOrdering>>();
 
   if (create_directories(storagePath_))
     std::cerr << "Created new storage created at: " << storagePath_ << '\n';
