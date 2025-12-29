@@ -7,18 +7,19 @@
 #include <userver/formats/bson.hpp>
 #include <userver/formats/bson/binary.hpp>
 #include <userver/formats/bson/inline.hpp>
+#include <userver/formats/bson/value_builder.hpp>
 #include <userver/formats/json/serialize.hpp>
 #include <userver/formats/json/value_builder.hpp>
+#include <userver/formats/serialize/common_containers.hpp>
 #include <userver/logging/log.hpp>
 #include <userver/storages/mongo/options.hpp>
-#include <userver/formats/serialize/common_containers.hpp>
 #include <utility>
 
 namespace SERVICE_NAMESPACE {
 
-Requester & Requester::instance() {
-	static Requester _instance;
-	return _instance;
+Requester &Requester::instance() {
+  static Requester _instance;
+  return _instance;
 }
 Requester::Requester()
     : tokenizeServiceAddr_(getenv("TOKENIZER_SERVICE_ADDR")),
@@ -65,12 +66,15 @@ Requester::getTokens(clients::http::Client &client,
   if (documentIds.empty())
     return {};
 
+  auto body = formats::json::ValueBuilder{documentIds}.ExtractValue();
   std::ostringstream oss;
-  oss << dbServiceAddr_ << "/token?id=" << documentIds[0];
-  for (size_t i = 1; i < documentIds.size(); ++i)
-    oss << "&id=" << documentIds[i];
-  auto request =
-      client.CreateRequest().get().url(oss.str()).retry(1).timeout(kTimeout_ms);
+  oss << dbServiceAddr_ << "/token";
+  auto request = client.CreateRequest()
+                     .post()
+                     .data(formats::json::ToString(body))
+                     .url(oss.str())
+                     .retry(1)
+                     .timeout(kTimeout_ms);
 
   auto response = request.perform();
   if (!response->IsOk()) {
@@ -108,12 +112,15 @@ Requester::getDocuments(clients::http::Client &client,
   if (tokenIds.empty())
     return {};
 
+  auto body = formats::json::ValueBuilder{tokenIds}.ExtractValue();
   std::ostringstream oss;
-  oss << dbServiceAddr_ << "/document?id=" << tokenIds[0];
-  for (size_t i = 1; i < tokenIds.size(); ++i)
-    oss << "&id=" << tokenIds[i];
-  auto request =
-      client.CreateRequest().get().url(oss.str()).retry(1).timeout(kTimeout_ms);
+  oss << dbServiceAddr_ << "/document";
+  auto request = client.CreateRequest()
+                     .post()
+                     .data(formats::json::ToString(body))
+                     .url(oss.str())
+                     .retry(1)
+                     .timeout(kTimeout_ms);
 
   auto response = request.perform();
   if (!response->IsOk()) {
@@ -163,12 +170,12 @@ Requester::getPagesData(storages::mongo::PoolPtr mongo,
     return {};
   std::vector<std::pair<std::uint32_t, pageData::PageData>> pages{};
   for (const auto &doc : cursor) {
-		LOG_DEBUG() << "DOC: " << formats::bson::ToBinaryString(doc).ToString();
+    LOG_DEBUG() << "DOC: " << formats::bson::ToBinaryString(doc).ToString();
     pages.emplace_back(doc["_id"].As<std::uint32_t>(),
                        pageData::PageData{doc["title"].As<std::string>({}),
                                           doc["url"].As<std::string>({})});
-	}
+  }
 
-	return pages;
+  return pages;
 }
 } // namespace SERVICE_NAMESPACE

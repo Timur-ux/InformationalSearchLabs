@@ -17,5 +17,14 @@ components:
               minimum: 0
               x-usrv-cpp-type: std::uint32_t
 
+    TokenRequestBody:
+      type: array
+      items:
+        type: integer
+        minimum: 0
+        x-usrv-cpp-type: std::uint32_t
+
+
+
 
 

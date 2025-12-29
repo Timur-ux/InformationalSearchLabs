@@ -23,28 +23,15 @@ std::string DocumentHandler::HandleRequest(HttpRequest &request,
                                            RequestContext &context) const {
   request.GetHttpResponse().SetContentType(
       userver::http::content_type::kApplicationJson);
-  const std::vector<std::string> &ids = request.GetArgVector("id");
+
+	auto ids = formats::json::FromString(request.RequestBody()).As<document::DocumentsRequestBody>();
 
   document::DocumentsResponseBody responseBody;
   for (const auto &id : ids) {
-    long _id = -1;
-    try {
-      _id = std::stol(id);
-    } catch (std::invalid_argument &) {
-      throw exception::IdInvalid(id);
-    } catch (std::out_of_range &) {
-      throw exception::IdOutOfRange(id);
-    }
-    if (_id < 0)
-      throw exception::IdInvalid(id);
-    if (_id > std::numeric_limits<std::uint32_t>::max())
-      throw exception::IdInvalid(id);
-
-    std::uint32_t key{static_cast<uint32_t>(_id)};
-    IR::Vector<std::uint32_t> values = db_.findDocumentsByTokenId(key);
+    IR::Vector<std::uint32_t> values = db_.findDocumentsByTokenId(id);
     responseBody.emplace_back(document::DocumentsResponseBodyA{
-        key, std::vector<std::uint32_t>{std::begin(values), std::end(values)}});
-    LOG_DEBUG() << "For key with id: " << key << " found " << values.size()
+        id, std::vector<std::uint32_t>{std::begin(values), std::end(values)}});
+    LOG_DEBUG() << "For key with id: " << id << " found " << values.size()
                 << " values";
   }
 

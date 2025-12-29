@@ -26,10 +26,10 @@ components_manager:
 
         document-handler:
           path: /document
-          method: GET
+          method: POST
           task_processor: main-task-processor
 
         token-handler:
           path: /token
-          method: GET
+          method: POST
           task_processor: main-task-processor
